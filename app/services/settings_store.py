@@ -105,7 +105,7 @@ def get_current_settings() -> dict:
         else:
             result[key] = value
     result["is_configured"] = bool(settings.imap_user)
-    result["has_ai"] = bool(settings.azure_ai_key)
+    result["has_ai"] = bool(settings.azure_ai_key or settings.moonshot_api_key)
     result["has_sarvam"] = bool(settings.sarvam_api_key)
     result["has_whatsapp"] = bool(settings.whatsapp_token)
     return result
