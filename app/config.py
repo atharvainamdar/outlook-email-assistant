@@ -8,10 +8,18 @@ from typing import Literal
 from pydantic_settings import BaseSettings
 
 
+def _default_data_dir() -> Path:
+    """Use /data on Fly.io (persistent volume), ~/email-assistant-data locally."""
+    fly_vol = Path("/data")
+    if fly_vol.exists() and fly_vol.is_dir():
+        return fly_vol
+    return Path.home() / "email-assistant-data"
+
+
 class Settings(BaseSettings):
     # ── General ───────────────────────────────────────────────────────────
     app_title: str = "Ariya Email Assistant"
-    data_dir: Path = Path.home() / "email-assistant-data"
+    data_dir: Path = _default_data_dir()
     db_path: str = ""  # resolved in validator
     log_level: str = "INFO"
 

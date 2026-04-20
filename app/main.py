@@ -15,6 +15,7 @@ from app.api.routes import router as api_router
 from app.config import settings
 from app.database import init_db
 from app.services.scheduler_service import start_scheduler, stop_scheduler
+from app.services.settings_store import apply_saved_on_startup
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -30,6 +31,7 @@ templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 async def lifespan(app: FastAPI):
     logger.info("Starting Ariya Email Assistant...")
     init_db()
+    apply_saved_on_startup()
     start_scheduler()
     yield
     stop_scheduler()

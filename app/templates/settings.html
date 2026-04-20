@@ -2,108 +2,267 @@
 {% block title %}Settings — Ariya Email Assistant{% endblock %}
 {% block content %}
 <div class="page-header">
-    <h1>Settings &amp; Setup Guide</h1>
+    <h1>Settings</h1>
+    <p class="subtitle">Configure your email connection — no technical knowledge needed</p>
 </div>
 
 <div class="section">
-    <h2>Connection Status</h2>
     <div class="status-panel" id="statusPanel">
         <p>Checking connection...</p>
     </div>
 </div>
 
+<!-- Step 1: Email Connection -->
 <div class="section">
-    <h2>Setup Guide</h2>
-    <div class="guide-card">
-        <h3>Option A: IMAP Access (Recommended)</h3>
-        <p>If your organisation allows IMAP access, this is the easiest way to connect.</p>
-        <ol>
-            <li>Check if IMAP is enabled: Go to Outlook Settings &rarr; Mail &rarr; Sync email &rarr; POP and IMAP</li>
-            <li>If enabled, set the following environment variables in your <code>.env</code> file:
-                <pre><code>EA_IMAP_HOST=outlook.office365.com
-EA_IMAP_PORT=993
-EA_IMAP_USER=your-email@company.com
-EA_IMAP_PASSWORD=your-password-or-app-password
-EA_SMTP_HOST=smtp-mail.outlook.com
-EA_SMTP_PORT=587</code></pre>
-            </li>
-            <li>If your organisation requires MFA, you may need to create an <strong>App Password</strong>:
-                <br>Go to <a href="https://mysignins.microsoft.com/security-info" target="_blank">Microsoft Security Info</a> &rarr; Add sign-in method &rarr; App password</li>
-            <li>Restart the assistant after saving the <code>.env</code> file</li>
-        </ol>
+    <h2>Step 1: Connect Your Email</h2>
+    <div class="settings-form">
+        <div class="form-group">
+            <label for="imap_user">Email Address</label>
+            <input type="email" id="imap_user" placeholder="your-email@company.com">
+            <span class="form-hint">Your Outlook or company email address</span>
+        </div>
+        <div class="form-group">
+            <label for="imap_password">Password</label>
+            <input type="password" id="imap_password" placeholder="Your password or App Password">
+            <span class="form-hint">If your account uses 2FA, use an App Password instead</span>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="imap_host">Email Server</label>
+                <input type="text" id="imap_host" placeholder="outlook.office365.com" value="outlook.office365.com">
+            </div>
+            <div class="form-group">
+                <label for="imap_port">Port</label>
+                <input type="number" id="imap_port" placeholder="993" value="993">
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" onclick="saveAndTest()">Save &amp; Test Connection</button>
+            <span id="testResult" class="form-result"></span>
+        </div>
     </div>
+</div>
 
-    <div class="guide-card">
-        <h3>Option B: Email Forwarding (No Admin Needed)</h3>
-        <p>If IMAP is blocked, you can forward emails to the assistant's webhook.</p>
-        <ol>
-            <li>In Outlook, go to Settings &rarr; Mail &rarr; Rules</li>
-            <li>Create a new rule:
-                <ul>
-                    <li><strong>Condition:</strong> Apply to all messages</li>
-                    <li><strong>Action:</strong> Forward / redirect to a processing email or use the webhook URL below</li>
-                </ul>
-            </li>
-            <li>The assistant will automatically process forwarded emails</li>
-        </ol>
-        <p><strong>Webhook URL:</strong> <code id="webhookUrl">http://localhost:8000/api/webhook/ingest</code></p>
+<!-- Step 2: AI (Optional) -->
+<div class="section">
+    <h2>Step 2: AI Summarisation (Optional)</h2>
+    <p class="section-hint">Without this, the tool still works — it just won't auto-summarise emails.</p>
+    <div class="settings-form">
+        <div class="form-group">
+            <label for="azure_ai_endpoint">Azure AI Endpoint</label>
+            <input type="text" id="azure_ai_endpoint" placeholder="https://your-resource.openai.azure.com/">
+        </div>
+        <div class="form-group">
+            <label for="azure_ai_key">Azure AI Key</label>
+            <input type="password" id="azure_ai_key" placeholder="Your Azure AI API key">
+        </div>
+        <div class="form-group">
+            <label for="azure_ai_model">Model</label>
+            <input type="text" id="azure_ai_model" placeholder="gpt-4o" value="gpt-4o">
+        </div>
     </div>
+</div>
 
-    <div class="guide-card">
-        <h3>Option C: Manual Upload</h3>
-        <p>Export emails from Outlook as .eml or .msg files and upload them via the API.</p>
-        <ol>
-            <li>In Outlook, select emails &rarr; File &rarr; Save As &rarr; Save as .eml</li>
-            <li>Place the files in the <code>data/imports</code> folder</li>
-            <li>Use the import API endpoint to process them</li>
-        </ol>
+<!-- Step 3: Indian Languages (Optional) -->
+<div class="section">
+    <h2>Step 3: Indian Language Support (Optional)</h2>
+    <p class="section-hint">Enable Hindi, Marathi, Tamil, Telugu voice and translation via Sarvam AI.</p>
+    <div class="settings-form">
+        <div class="form-group">
+            <label for="sarvam_api_key">Sarvam API Key</label>
+            <input type="password" id="sarvam_api_key" placeholder="Your Sarvam AI API key">
+        </div>
+    </div>
+</div>
+
+<!-- Step 4: WhatsApp (Optional) -->
+<div class="section">
+    <h2>Step 4: WhatsApp Alerts (Optional)</h2>
+    <p class="section-hint">Get urgent email alerts and daily briefings on WhatsApp.</p>
+    <div class="settings-form">
+        <div class="form-group">
+            <label for="whatsapp_token">WhatsApp Business Token</label>
+            <input type="password" id="whatsapp_token" placeholder="WhatsApp Cloud API token">
+        </div>
+        <div class="form-group">
+            <label for="whatsapp_dad_phone">Your WhatsApp Number</label>
+            <input type="tel" id="whatsapp_dad_phone" placeholder="+91XXXXXXXXXX">
+        </div>
+        <div class="form-group">
+            <label for="whatsapp_secretary_phone">Secretary's WhatsApp Number</label>
+            <input type="tel" id="whatsapp_secretary_phone" placeholder="+91XXXXXXXXXX">
+        </div>
+    </div>
+</div>
+
+<!-- Daily Briefing -->
+<div class="section">
+    <h2>Daily Briefing</h2>
+    <div class="settings-form">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="briefing_hour">Briefing Time (hour, 24h)</label>
+                <input type="number" id="briefing_hour" min="0" max="23" value="8">
+                <span class="form-hint">e.g. 8 = 8:00 AM, 20 = 8:00 PM</span>
+            </div>
+            <div class="form-group">
+                <label for="briefing_recipient">Send Briefing To</label>
+                <input type="email" id="briefing_recipient" placeholder="Same as your email">
+            </div>
+        </div>
     </div>
 </div>
 
 <div class="section">
-    <h2>AI Configuration</h2>
-    <div class="guide-card">
-        <p>The assistant uses Azure AI for email summarisation and drafting. Set these in <code>.env</code>:</p>
-        <pre><code>EA_AZURE_AI_ENDPOINT=your-azure-endpoint
-EA_AZURE_AI_KEY=your-azure-api-key
-EA_AZURE_AI_MODEL=gpt-4o</code></pre>
+    <div class="form-actions">
+        <button class="btn btn-primary btn-lg" onclick="saveAll()">Save All Settings</button>
+        <span id="saveResult" class="form-result"></span>
     </div>
 </div>
 
+<!-- Storage Tips -->
 <div class="section">
     <h2>Storage Tips</h2>
     <div class="guide-card">
         <h3>Freeing Outlook Storage</h3>
         <ol>
-            <li><strong>Back up first:</strong> Use the "Backup Now" button on the Dashboard to save all emails locally</li>
+            <li><strong>Back up first:</strong> Go to the Dashboard and click "Backup Now"</li>
             <li><strong>Empty Deleted Items:</strong> In Outlook, right-click "Deleted Items" &rarr; Empty Folder</li>
-            <li><strong>Clear Sent Items:</strong> Old sent emails often consume significant space</li>
+            <li><strong>Clear Sent Items:</strong> Old sent emails often consume a lot of space</li>
             <li><strong>Junk Email:</strong> Empty your Junk Email folder</li>
-            <li><strong>Large attachments:</strong> Sort by size and delete emails with large attachments (after backing up)</li>
-            <li><strong>Archive policy:</strong> Set up the assistant to auto-backup emails older than 30 days, then safely delete them from Outlook</li>
+            <li><strong>Large attachments:</strong> Sort by size and delete emails with large attachments (they are backed up here!)</li>
         </ol>
+    </div>
+</div>
+
+<!-- Alternative: Email Forwarding -->
+<div class="section">
+    <h2>Alternative: Email Forwarding</h2>
+    <div class="guide-card">
+        <p>If your company blocks direct email access (IMAP), you can forward emails instead:</p>
+        <ol>
+            <li>In Outlook, go to <strong>Settings &rarr; Mail &rarr; Rules</strong></li>
+            <li>Create a rule: Forward all incoming emails to a personal email</li>
+            <li>Point this tool at your personal email, or use the webhook below</li>
+        </ol>
+        <p><strong>Webhook URL:</strong> <code id="webhookUrl"></code></p>
     </div>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
-async function checkStatus() {
+const FIELDS = [
+    'imap_host','imap_port','imap_user','imap_password',
+    'azure_ai_endpoint','azure_ai_key','azure_ai_model',
+    'sarvam_api_key',
+    'whatsapp_token','whatsapp_dad_phone','whatsapp_secretary_phone',
+    'briefing_hour','briefing_recipient'
+];
+
+async function loadSettings() {
     try {
-        const health = await api('/health');
-        const stats = await api('/api/stats');
-        document.getElementById('statusPanel').innerHTML = `
-            <div class="status-item status-ok">Server: Running</div>
-            <div class="status-item ${stats.total_emails > 0 ? 'status-ok' : 'status-warn'}">
-                Emails in DB: ${stats.total_emails}
-            </div>
-            <div class="status-item ${stats.total_backed_up > 0 ? 'status-ok' : 'status-warn'}">
-                Backed up: ${stats.total_backed_up}
-            </div>
-        `;
+        const cfg = await api('/api/settings/config');
+        FIELDS.forEach(f => {
+            const el = document.getElementById(f);
+            if (el && cfg[f] !== undefined && cfg[f] !== '') {
+                el.value = cfg[f];
+            }
+        });
+        updateStatus(cfg);
     } catch(e) {
-        document.getElementById('statusPanel').innerHTML = '<div class="status-item status-error">Server unreachable</div>';
+        console.error('Failed to load settings', e);
     }
 }
-checkStatus();
+
+function updateStatus(cfg) {
+    const panel = document.getElementById('statusPanel');
+    let html = '<div class="status-item status-ok">Server: Running</div>';
+    if (cfg.is_configured) {
+        html += '<div class="status-item status-ok">Email: Configured</div>';
+    } else {
+        html += '<div class="status-item status-warn">Email: Not configured — fill in Step 1 below</div>';
+    }
+    if (cfg.has_ai) {
+        html += '<div class="status-item status-ok">AI Summarisation: Enabled</div>';
+    } else {
+        html += '<div class="status-item status-warn">AI: Not configured (optional)</div>';
+    }
+    if (cfg.has_sarvam) {
+        html += '<div class="status-item status-ok">Indian Languages: Enabled</div>';
+    }
+    if (cfg.has_whatsapp) {
+        html += '<div class="status-item status-ok">WhatsApp: Enabled</div>';
+    }
+    panel.innerHTML = html;
+}
+
+function gatherSettings() {
+    const data = {};
+    FIELDS.forEach(f => {
+        const el = document.getElementById(f);
+        if (el && el.value) {
+            data[f] = el.value;
+        }
+    });
+    return data;
+}
+
+async function saveAll() {
+    const btn = event.target;
+    const result = document.getElementById('saveResult');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    try {
+        const cfg = await api('/api/settings/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(gatherSettings())
+        });
+        updateStatus(cfg);
+        result.className = 'form-result success';
+        result.textContent = 'Settings saved!';
+        showToast('Settings saved successfully!', 'info');
+    } catch(e) {
+        result.className = 'form-result error';
+        result.textContent = 'Failed to save: ' + e.message;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save All Settings';
+}
+
+async function saveAndTest() {
+    const btn = event.target;
+    const result = document.getElementById('testResult');
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+    try {
+        await api('/api/settings/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(gatherSettings())
+        });
+        const test = await api('/api/settings/test-imap', {method: 'POST'});
+        if (test.ok) {
+            result.className = 'form-result success';
+            result.textContent = 'Connected successfully!';
+            showToast('Email connection works!', 'info');
+        } else {
+            result.className = 'form-result error';
+            result.textContent = test.message || 'Connection failed';
+        }
+    } catch(e) {
+        result.className = 'form-result error';
+        result.textContent = 'Test failed: ' + e.message;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Save & Test Connection';
+    loadSettings();
+}
+
+// Set webhook URL based on current host
+document.getElementById('webhookUrl').textContent =
+    window.location.origin + '/api/webhook/ingest';
+
+loadSettings();
 </script>
 {% endblock %}

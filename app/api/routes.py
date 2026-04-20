@@ -43,6 +43,7 @@ from app.services.language_service import (
     translate_summary_to_original,
 )
 from app.services.nlp_search_service import natural_language_search
+from app.services.settings_store import get_current_settings, save_settings
 from app.services.smtp_service import send_email
 from app.services.voice_service import is_configured as voice_configured
 from app.services.voice_service import read_email_summary_aloud
@@ -441,3 +442,26 @@ def api_translate_text(
         "source_lang": source_lang,
         "target_lang": target_lang,
     }
+
+
+# ── Settings (web-based config) ──────────────────────────────────────────────
+
+@router.get("/settings/config")
+def api_get_settings():
+    """Return current settings (sensitive fields masked)."""
+    return get_current_settings()
+
+
+@router.post("/settings/config")
+def api_save_settings(request: dict):
+    """Save settings via the web UI — no .env editing needed."""
+    return save_settings(request)
+
+
+@router.post("/settings/test-imap")
+def api_test_imap():
+    """Test IMAP connection with current settings."""
+    from app.services.imap_service import IMAPService
+    svc = IMAPService()
+    ok, msg = svc.test_connection()
+    return {"ok": ok, "message": msg}
