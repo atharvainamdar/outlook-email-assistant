@@ -38,11 +38,18 @@ class Settings(BaseSettings):
     smtp_user: str = ""  # defaults to imap_user
     smtp_password: str = ""  # defaults to imap_password
 
-    # ── Azure AI (summarisation / drafting) ───────────────────────────────
+    # ── AI Provider (summarisation / drafting) ────────────────────────────
+    # provider: "azure" (Azure OpenAI), "azure_serverless" (AI Foundry),
+    #           "moonshot" (Kimi direct), "openai_compat" (any compatible)
+    ai_provider: str = "azure_serverless"
     azure_ai_endpoint: str = ""
     azure_ai_key: str = ""
-    azure_ai_model: str = "gpt-4o"
+    azure_ai_model: str = "kimi-k2.5"
     azure_ai_api_version: str = "2024-12-01-preview"
+    # Moonshot / OpenAI-compatible direct API
+    moonshot_api_key: str = ""
+    moonshot_base_url: str = "https://api.moonshot.ai/v1"
+    moonshot_model: str = "kimi-k2.5"
 
     # ── Backup ────────────────────────────────────────────────────────────
     backup_format: Literal["json", "eml", "both"] = "both"

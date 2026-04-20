@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-import httpx
-
-from app.config import settings
 from app.database import list_emails, search_emails
 from app.models.email import EmailMessage
 
@@ -71,47 +67,14 @@ def _resolve_date_hint(hint: str) -> tuple[datetime | None, datetime | None]:
 
 def _parse_query_with_ai(query: str) -> dict:
     """Use AI to parse natural language into search params."""
-    if not settings.azure_ai_key:
+    from app.services.ai_service import _chat, _get_api_key, _parse_json
+
+    if not _get_api_key():
         return {"keywords": query, "sender": "", "date_hint": ""}
 
-    endpoint = settings.azure_ai_endpoint.rstrip("/")
-    model = settings.azure_ai_model
-    ver = settings.azure_ai_api_version
-    if "/openai" in endpoint:
-        url = (
-            f"{endpoint}/deployments/{model}"
-            f"/chat/completions?api-version={ver}"
-        )
-    else:
-        url = (
-            f"{endpoint}/openai/deployments/{model}"
-            f"/chat/completions?api-version={ver}"
-        )
-
     try:
-        resp = httpx.post(
-            url,
-            json={
-                "messages": [
-                    {"role": "system", "content": _SEARCH_SYSTEM},
-                    {"role": "user", "content": query},
-                ],
-                "temperature": 0.0,
-                "max_tokens": 200,
-            },
-            headers={
-                "Content-Type": "application/json",
-                "api-key": settings.azure_ai_key,
-            },
-            timeout=15,
-        )
-        resp.raise_for_status()
-        raw = resp.json()["choices"][0]["message"]["content"].strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-        return json.loads(raw.strip())
+        raw = _chat(_SEARCH_SYSTEM, query, temperature=0.0)
+        return _parse_json(raw)
     except Exception:
         logger.exception("NLP search parsing failed")
         return {"keywords": query, "sender": "", "date_hint": ""}

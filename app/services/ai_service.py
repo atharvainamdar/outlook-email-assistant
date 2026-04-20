@@ -1,4 +1,11 @@
-"""Azure AI integration — email summarisation, task extraction, and reply drafting."""
+"""AI integration — email summarisation, task extraction, and reply drafting.
+
+Supports multiple providers:
+- azure: Azure OpenAI (api-key header, deployment-based URL)
+- azure_serverless: Azure AI Foundry serverless (Bearer token, models endpoint)
+- moonshot: Moonshot/Kimi direct API (OpenAI-compatible)
+- openai_compat: Any OpenAI-compatible endpoint
+"""
 
 from __future__ import annotations
 
@@ -48,34 +55,108 @@ Group by priority and category. Highlight urgent items first.
 Return plain text formatted for easy reading."""
 
 
+def _get_provider() -> str:
+    """Determine which AI provider to use."""
+    provider = settings.ai_provider.lower().strip()
+    if provider in ("azure", "azure_openai"):
+        return "azure"
+    if provider in ("azure_serverless", "azure_foundry", "foundry"):
+        return "azure_serverless"
+    if provider in ("moonshot", "kimi"):
+        return "moonshot"
+    return "openai_compat"
+
+
+def _get_api_key() -> str:
+    """Get the API key for the active provider."""
+    provider = _get_provider()
+    if provider == "moonshot":
+        return settings.moonshot_api_key or settings.azure_ai_key
+    return settings.azure_ai_key or settings.moonshot_api_key
+
+
 def _build_headers() -> dict[str, str]:
+    """Build request headers based on the active provider."""
+    provider = _get_provider()
+    key = _get_api_key()
+
+    if provider == "azure":
+        return {
+            "Content-Type": "application/json",
+            "api-key": key,
+        }
+    # azure_serverless, moonshot, openai_compat all use Bearer token
     return {
         "Content-Type": "application/json",
-        "api-key": settings.azure_ai_key,
+        "Authorization": f"Bearer {key}",
     }
 
 
 def _build_url() -> str:
-    endpoint = settings.azure_ai_endpoint.rstrip("/")
-    # Handle both Azure OpenAI and Azure AI Foundry endpoints
-    model = settings.azure_ai_model
-    ver = settings.azure_ai_api_version
-    if "/openai" in endpoint:
-        return (
-            f"{endpoint}/deployments/{model}"
-            f"/chat/completions?api-version={ver}"
-        )
-    else:
+    """Build the chat completions URL for the active provider."""
+    provider = _get_provider()
+
+    if provider == "azure":
+        endpoint = settings.azure_ai_endpoint.rstrip("/")
+        model = settings.azure_ai_model
+        ver = settings.azure_ai_api_version
+        if "/openai" in endpoint:
+            return (
+                f"{endpoint}/deployments/{model}"
+                f"/chat/completions?api-version={ver}"
+            )
         return (
             f"{endpoint}/openai/deployments/{model}"
             f"/chat/completions?api-version={ver}"
         )
 
+    if provider == "azure_serverless":
+        endpoint = settings.azure_ai_endpoint.rstrip("/")
+        # Azure AI Foundry serverless: models endpoint
+        base = endpoint.split("/api/projects")[0]
+        region = _extract_region(base)
+        host = base.split("//", 1)[1].split(".")[0] if "//" in base else base
+        return (
+            f"https://{host}.{region}.models.ai.azure.com"
+            f"/chat/completions"
+        )
 
-def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
-    """Send a chat completion request to Azure AI."""
-    url = _build_url()
-    payload = {
+    if provider == "moonshot":
+        base_url = settings.moonshot_base_url.rstrip("/")
+        return f"{base_url}/chat/completions"
+
+    # openai_compat fallback
+    base_url = (
+        settings.moonshot_base_url.rstrip("/")
+        if settings.moonshot_api_key
+        else settings.azure_ai_endpoint.rstrip("/")
+    )
+    return f"{base_url}/chat/completions"
+
+
+def _extract_region(endpoint: str) -> str:
+    """Extract Azure region from endpoint URL."""
+    # e.g. https://foo-resource.services.ai.azure.com -> guess from name
+    # or use a known mapping
+    parts = endpoint.lower()
+    if "eastus" in parts:
+        return "eastus"
+    if "centralindia" in parts:
+        return "centralindia"
+    if "westus" in parts:
+        return "westus2"
+    if "westeurope" in parts:
+        return "westeurope"
+    return "eastus"  # default
+
+
+def _build_payload(
+    system: str,
+    user_content: str,
+    temperature: float = 0.3,
+) -> dict:
+    """Build the request payload, adding model field when needed."""
+    payload: dict = {
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user_content},
@@ -83,7 +164,30 @@ def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
         "temperature": temperature,
         "max_tokens": 2000,
     }
-    resp = httpx.post(url, json=payload, headers=_build_headers(), timeout=60)
+
+    provider = _get_provider()
+    if provider in ("azure_serverless", "moonshot", "openai_compat"):
+        model = (
+            settings.moonshot_model
+            if provider == "moonshot"
+            else settings.azure_ai_model
+        )
+        payload["model"] = model
+
+    return payload
+
+
+def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
+    """Send a chat completion request to the configured AI provider."""
+    if not _get_api_key():
+        raise RuntimeError("No AI API key configured")
+
+    url = _build_url()
+    payload = _build_payload(system, user_content, temperature)
+    headers = _build_headers()
+
+    logger.info("AI request to %s (provider=%s)", url, _get_provider())
+    resp = httpx.post(url, json=payload, headers=headers, timeout=60)
     resp.raise_for_status()
     data = resp.json()
     return data["choices"][0]["message"]["content"].strip()
@@ -101,7 +205,7 @@ def _parse_json(text: str) -> dict:
 
 
 def summarise_email(email_msg: EmailMessage) -> EmailSummary:
-    """Summarise a single email using Azure AI."""
+    """Summarise a single email using the configured AI provider."""
     body = email_msg.body_text or email_msg.body_html
     # Truncate very long emails
     if len(body) > 8000:
