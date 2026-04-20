@@ -176,6 +176,11 @@ def _extract_region(endpoint: str) -> str:
     return "eastus"
 
 
+def _is_openai_model(model_name: str) -> bool:
+    """Check if a model uses the OpenAI deployment endpoint (gpt-* series)."""
+    return model_name.lower().startswith("gpt-")
+
+
 def _build_payload(
     system: str,
     user_content: str,
@@ -183,13 +188,18 @@ def _build_payload(
     model_override: str | None = None,
 ) -> dict:
     """Build the request payload, adding model field when needed."""
+    model_name = model_override or settings.azure_ai_model or ""
+
+    # GPT-5.x+ models require max_completion_tokens, not max_tokens
+    token_key = "max_completion_tokens" if _is_openai_model(model_name) else "max_tokens"
+
     payload: dict = {
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user_content},
         ],
         "temperature": temperature,
-        "max_tokens": 2000,
+        token_key: 2000,
     }
 
     # Always include model name — required by Azure AI Foundry models endpoint
@@ -225,14 +235,24 @@ def _chat(
 
     model_override = None
     url_override = None
+    use_apikey_header = False
     if use_bulk_model and settings.azure_ai_bulk_model:
         model_override = settings.azure_ai_bulk_model
         if settings.azure_ai_bulk_endpoint:
             url_override = settings.azure_ai_bulk_endpoint
+            # Azure OpenAI deployment endpoints use api-key header
+            if "/openai/deployments/" in url_override:
+                use_apikey_header = True
 
     url = url_override or _build_url()
     payload = _build_payload(system, user_content, temperature, model_override)
-    headers = _build_headers()
+    if use_apikey_header:
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": _get_api_key(),
+        }
+    else:
+        headers = _build_headers()
 
     logger.info("AI request to %s (provider=%s)", url, _get_provider())
     last_exc: Exception | None = None
