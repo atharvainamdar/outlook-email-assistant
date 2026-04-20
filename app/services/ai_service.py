@@ -98,6 +98,9 @@ def _build_url() -> str:
 
     if provider == "azure":
         endpoint = settings.azure_ai_endpoint.rstrip("/")
+        # If the endpoint already contains /chat/completions, use as-is
+        if "/chat/completions" in endpoint:
+            return endpoint
         model = settings.azure_ai_model
         ver = settings.azure_ai_api_version
         if "/openai" in endpoint:
