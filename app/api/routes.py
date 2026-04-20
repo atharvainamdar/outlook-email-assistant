@@ -35,8 +35,19 @@ from app.models.email import (
 )
 from app.services.ai_service import draft_reply, summarise_email
 from app.services.backup_service import backup_emails, get_backup_size_mb, list_backups
+from app.services.briefing_service import generate_briefing_html, send_daily_briefing
+from app.services.categorisation_service import categorise_email, get_priority_order
+from app.services.language_service import (
+    detect_language,
+    process_multilingual_email,
+    translate_summary_to_original,
+)
+from app.services.nlp_search_service import natural_language_search
 from app.services.smtp_service import send_email
+from app.services.voice_service import is_configured as voice_configured
+from app.services.voice_service import read_email_summary_aloud
 from app.services.webhook_service import ingest_forwarded_email
+from app.services.whatsapp_service import WhatsAppService
 
 logger = logging.getLogger(__name__)
 
@@ -245,3 +256,188 @@ def api_stats():
         total_tasks_done=count_tasks(status="done"),
         storage_saved_mb=get_backup_size_mb(),
     )
+
+
+# ── Smart Priority Inbox ─────────────────────────────────────────────────────
+
+@router.get("/priority-inbox")
+def api_priority_inbox(limit: int = 100):
+    """Get emails sorted by priority with categories."""
+    emails = list_emails(limit=limit)
+    return get_priority_order(emails)
+
+
+@router.get("/emails/{email_id}/categorise")
+def api_categorise_email(email_id: str):
+    """Categorise a single email."""
+    em = get_email(email_id)
+    if not em:
+        raise HTTPException(404, "Email not found")
+    return categorise_email(em)
+
+
+# ── Natural Language Search ───────────────────────────────────────────────────
+
+@router.get("/smart-search")
+def api_smart_search(q: str = "", limit: int = 50):
+    """Search emails using natural language."""
+    if not q:
+        raise HTTPException(400, "Query required")
+    return natural_language_search(q, limit=limit)
+
+
+# ── Daily Briefing ────────────────────────────────────────────────────────────
+
+@router.get("/briefing")
+def api_get_briefing():
+    """Generate and return today's briefing as HTML."""
+    html, count = generate_briefing_html()
+    return {"html": html, "email_count": count}
+
+
+@router.post("/briefing/send")
+def api_send_briefing(recipient: str = ""):
+    """Generate and send today's briefing via email."""
+    ok = send_daily_briefing(recipient)
+    if not ok:
+        raise HTTPException(
+            500, "Failed to send briefing (check SMTP config)"
+        )
+    return {"status": "sent"}
+
+
+# ── WhatsApp ──────────────────────────────────────────────────────────────────
+
+@router.get("/whatsapp/status")
+def api_whatsapp_status():
+    wa = WhatsAppService()
+    return {"configured": wa.is_configured, "dad_phone": bool(wa.dad_phone)}
+
+
+@router.post("/whatsapp/send-summary")
+def api_whatsapp_send_summary():
+    """Send today's briefing summary to dad on WhatsApp."""
+    wa = WhatsAppService()
+    if not wa.is_configured:
+        raise HTTPException(400, "WhatsApp not configured")
+    html, count = generate_briefing_html()
+    # Create plain-text version for WhatsApp
+    emails = list_emails(limit=20)
+    lines = [f"*Daily Briefing* ({count} emails)\n"]
+    for em in emails[:10]:
+        priority = "!!" if not em.summary else ""
+        summary = em.summary or em.subject
+        lines.append(
+            f"{priority} *{em.sender_name or em.sender}*: "
+            f"{summary[:80]}"
+        )
+    if count > 10:
+        lines.append(f"\n...and {count - 10} more")
+    ok = wa.send_daily_briefing("\n".join(lines))
+    if not ok:
+        raise HTTPException(500, "Failed to send WhatsApp message")
+    return {"status": "sent"}
+
+
+@router.post("/whatsapp/notify-secretary")
+def api_whatsapp_notify_secretary(message: str = ""):
+    """Send a message to secretary via WhatsApp."""
+    if not message:
+        raise HTTPException(400, "Message required")
+    wa = WhatsAppService()
+    if not wa.secretary_phone:
+        raise HTTPException(400, "Secretary phone not configured")
+    ok = wa.notify_secretary(message)
+    if not ok:
+        raise HTTPException(500, "Failed to send")
+    return {"status": "sent"}
+
+
+@router.post("/whatsapp/notify-email-sent")
+def api_whatsapp_notify_sent(
+    recipient_name: str = "",
+    subject: str = "",
+    notify_secretary: bool = False,
+):
+    """Notify on WhatsApp that an email was sent."""
+    wa = WhatsAppService()
+    ok = wa.notify_email_sent(
+        recipient_name, subject, notify_secretary
+    )
+    return {"status": "sent" if ok else "not_configured"}
+
+
+# ── Voice (Sarvam AI) ────────────────────────────────────────────────────────
+
+@router.get("/voice/status")
+def api_voice_status():
+    return {"configured": voice_configured()}
+
+
+@router.post("/voice/read-summary")
+def api_voice_read_summary(
+    email_id: str = "",
+    language: str = "hi-IN",
+):
+    """Read an email's summary aloud in Hindi/Marathi/English."""
+    em = get_email(email_id)
+    if not em:
+        raise HTTPException(404, "Email not found")
+    if not em.summary:
+        raise HTTPException(400, "Email not summarised yet")
+    path = read_email_summary_aloud(em.summary, language=language)
+    if not path:
+        raise HTTPException(500, "TTS generation failed")
+    return {"audio_path": path, "language": language}
+
+
+# ── Language Processing ───────────────────────────────────────────────────────
+
+@router.get("/emails/{email_id}/language")
+def api_detect_language(email_id: str):
+    """Detect the language of an email."""
+    em = get_email(email_id)
+    if not em:
+        raise HTTPException(404, "Email not found")
+    body = em.body_text or em.body_html or ""
+    lang = detect_language(body)
+    return {"email_id": em.id, "language": lang}
+
+
+@router.post("/emails/{email_id}/translate")
+def api_translate_email(email_id: str, target_lang: str = "en"):
+    """Translate an email to English (or another language)."""
+    em = get_email(email_id)
+    if not em:
+        raise HTTPException(404, "Email not found")
+    body = em.body_text or em.body_html or ""
+    result = process_multilingual_email(body, subject=em.subject)
+    # Also translate summary if available
+    translated_summary = ""
+    if em.summary and target_lang != "en":
+        translated_summary = translate_summary_to_original(
+            em.summary, target_lang
+        )
+    result["translated_summary"] = translated_summary
+    return result
+
+
+@router.post("/translate")
+def api_translate_text(
+    text: str = "",
+    source_lang: str = "",
+    target_lang: str = "en",
+):
+    """Translate arbitrary text between languages."""
+    if not text:
+        raise HTTPException(400, "Text required")
+    if not source_lang:
+        source_lang = detect_language(text)
+    from app.services.language_service import translate_text
+    translated = translate_text(text, source_lang, target_lang)
+    return {
+        "original": text,
+        "translated": translated,
+        "source_lang": source_lang,
+        "target_lang": target_lang,
+    }

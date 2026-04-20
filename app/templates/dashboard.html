@@ -34,20 +34,53 @@
     </div>
 </div>
 
+<!-- Smart Search -->
+<div class="section">
+    <h2>Smart Search</h2>
+    <div class="smart-search-bar">
+        <input type="text" id="smartSearchInput" class="search-input search-full"
+               placeholder="Search naturally... e.g. 'invoice from Sharma last month' or 'urgent emails about Mumbai project'"
+               onkeyup="if(event.key==='Enter')smartSearch()">
+        <button class="btn btn-primary" onclick="smartSearch()">Search</button>
+    </div>
+    <div class="search-results hidden" id="smartSearchResults"></div>
+</div>
+
 <!-- Quick actions -->
 <div class="section">
     <h2>Quick Actions</h2>
     <div class="action-bar">
         <button class="btn btn-primary" onclick="fetchEmails()">Fetch New Emails</button>
-        <button class="btn btn-secondary" onclick="summariseBatch()">Summarise Unsummarised</button>
+        <button class="btn btn-secondary" onclick="summariseBatch()">Summarise All</button>
         <button class="btn btn-secondary" onclick="backupNow()">Backup Now</button>
+        <button class="btn btn-secondary" onclick="sendBriefing()">Send Briefing Email</button>
+        <button class="btn btn-secondary" onclick="sendWhatsAppSummary()">Send via WhatsApp</button>
     </div>
 </div>
 
-<!-- Recent emails -->
+<!-- Priority Inbox -->
 <div class="section">
-    <h2>Recent Emails</h2>
-    <div class="email-list" id="recentEmails">
+    <h2>Priority Inbox</h2>
+    <div class="priority-tabs">
+        <button class="tab-btn active" onclick="showPriorityTab('urgent', this)">
+            Urgent <span class="tab-count" id="urgentCount">0</span>
+        </button>
+        <button class="tab-btn" onclick="showPriorityTab('important', this)">
+            Important <span class="tab-count" id="importantCount">0</span>
+        </button>
+        <button class="tab-btn" onclick="showPriorityTab('normal', this)">
+            Other <span class="tab-count" id="normalCount">0</span>
+        </button>
+    </div>
+    <div class="email-list" id="priorityEmails">
+        <p class="empty-state">Loading...</p>
+    </div>
+</div>
+
+<!-- Categories -->
+<div class="section">
+    <h2>Categories</h2>
+    <div class="category-grid" id="categoryGrid">
         <p class="empty-state">Loading...</p>
     </div>
 </div>
@@ -63,6 +96,9 @@
 {% endblock %}
 {% block scripts %}
 <script>
+let priorityData = {urgent: [], important: [], normal: []};
+let currentPriorityTab = 'urgent';
+
 async function loadDashboard() {
     // Load stats
     try {
@@ -75,16 +111,38 @@ async function loadDashboard() {
         document.getElementById('statStorage').textContent = stats.storage_saved_mb;
     } catch(e) { console.error('Stats error:', e); }
 
-    // Load recent emails
+    // Load priority inbox
     try {
-        const emails = await api('/api/emails?limit=10');
-        const el = document.getElementById('recentEmails');
-        if (emails.length === 0) {
-            el.innerHTML = '<p class="empty-state">No emails yet. Configure IMAP or use the webhook to ingest emails.</p>';
-        } else {
-            el.innerHTML = emails.map(e => emailCard(e)).join('');
+        const data = await api('/api/priority-inbox?limit=50');
+        priorityData = data;
+        document.getElementById('urgentCount').textContent = data.urgent.length;
+        document.getElementById('importantCount').textContent = data.important.length;
+        document.getElementById('normalCount').textContent = data.normal.length;
+        showPriorityTab(currentPriorityTab);
+
+        // Render categories
+        if (data.categories && Object.keys(data.categories).length > 0) {
+            const grid = document.getElementById('categoryGrid');
+            grid.innerHTML = Object.entries(data.categories)
+                .sort((a, b) => b[1] - a[1])
+                .map(([cat, count]) => `<div class="category-card">
+                    <div class="category-name">${cat.charAt(0).toUpperCase() + cat.slice(1)}</div>
+                    <div class="category-count">${count}</div>
+                </div>`).join('');
         }
-    } catch(e) { console.error('Emails error:', e); }
+    } catch(e) {
+        console.error('Priority inbox error:', e);
+        // Fallback to regular email list
+        try {
+            const emails = await api('/api/emails?limit=10');
+            const el = document.getElementById('priorityEmails');
+            if (emails.length === 0) {
+                el.innerHTML = '<p class="empty-state">No emails yet. Configure IMAP or use the webhook to ingest emails.</p>';
+            } else {
+                el.innerHTML = emails.map(e => emailCard(e)).join('');
+            }
+        } catch(e2) { console.error('Emails fallback error:', e2); }
+    }
 
     // Load open tasks
     try {
@@ -98,9 +156,57 @@ async function loadDashboard() {
     } catch(e) { console.error('Tasks error:', e); }
 }
 
+function showPriorityTab(tab, btnEl) {
+    currentPriorityTab = tab;
+    const items = priorityData[tab] || [];
+    const el = document.getElementById('priorityEmails');
+    // Update active tab
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    if (btnEl) btnEl.classList.add('active');
+    else document.querySelector(`[onclick*="${tab}"]`)?.classList.add('active');
+
+    if (items.length === 0) {
+        el.innerHTML = `<p class="empty-state">No ${tab} emails.</p>`;
+    } else {
+        el.innerHTML = items.map(item => `<div class="email-card">
+            <div class="email-card-header">
+                <strong>${escHtml(item.sender_name || item.sender)}</strong>
+                <div>
+                    <span class="badge badge-${item.priority || 'medium'}">${(item.priority || 'medium').toUpperCase()}</span>
+                    <span class="badge badge-blue">${item.category || 'other'}</span>
+                </div>
+            </div>
+            <div class="email-card-subject">${escHtml(item.subject)}</div>
+            <div class="email-card-preview">${escHtml(item.one_line_summary || item.summary || '')}</div>
+            <div class="email-card-footer">
+                ${item.action_required ? '<span class="badge badge-high">Action needed: ' + (item.action_type || 'reply') + '</span>' : ''}
+                ${item.deadline_detected ? '<span class="badge badge-warning">Deadline: ' + item.deadline_detected + '</span>' : ''}
+            </div>
+        </div>`).join('');
+    }
+}
+
+async function smartSearch() {
+    const q = document.getElementById('smartSearchInput').value.trim();
+    if (!q) return;
+    const el = document.getElementById('smartSearchResults');
+    el.classList.remove('hidden');
+    el.innerHTML = '<p class="empty-state">Searching...</p>';
+    try {
+        const data = await api(`/api/smart-search?q=${encodeURIComponent(q)}`);
+        if (data.total_results === 0) {
+            el.innerHTML = '<p class="empty-state">No results found.</p>';
+        } else {
+            let html = `<p style="margin-bottom:8px;color:#64748b;">Found ${data.total_results} results</p>`;
+            html += data.results.map(e => emailCard(e)).join('');
+            el.innerHTML = html;
+        }
+    } catch(e) {
+        el.innerHTML = '<p class="empty-state">Search failed.</p>';
+    }
+}
+
 async function fetchEmails() {
-    showToast('Fetching emails...');
-    // This triggers via the scheduler; we just show a message
     showToast('Email fetch triggered. New emails will appear shortly.');
 }
 
@@ -119,10 +225,29 @@ async function backupNow() {
     showToast('Starting backup...');
     try {
         const result = await api('/api/backup', { method: 'POST' });
-        showToast(`Backed up ${result.total} emails (${result.json_files} JSON, ${result.eml_files} EML)`);
+        showToast(`Backed up ${result.total} emails`);
         loadDashboard();
     } catch(e) {
         showToast('Backup failed: ' + e.message, 'error');
+    }
+}
+
+async function sendBriefing() {
+    showToast('Generating and sending briefing...');
+    try {
+        await api('/api/briefing/send', { method: 'POST' });
+        showToast('Daily briefing sent to your email!');
+    } catch(e) {
+        showToast('Briefing failed: ' + e.message, 'error');
+    }
+}
+
+async function sendWhatsAppSummary() {
+    try {
+        await api('/api/whatsapp/send-summary', { method: 'POST' });
+        showToast('Summary sent to WhatsApp!');
+    } catch(e) {
+        showToast('WhatsApp not configured or send failed', 'error');
     }
 }
 

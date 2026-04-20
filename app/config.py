@@ -43,6 +43,20 @@ class Settings(BaseSettings):
     # ── Webhook (fallback ingestion when IMAP blocked) ────────────────────
     webhook_secret: str = ""  # shared secret for forwarding endpoint
 
+    # ── WhatsApp ──────────────────────────────────────────────────────────
+    whatsapp_token: str = ""
+    whatsapp_phone_id: str = ""
+    whatsapp_verify_token: str = ""
+    whatsapp_dad_phone: str = ""
+    whatsapp_secretary_phone: str = ""
+
+    # ── Sarvam AI (voice — Hindi/Marathi) ─────────────────────────────────
+    sarvam_api_key: str = ""
+
+    # ── Daily Briefing ────────────────────────────────────────────────────
+    briefing_hour: int = 8  # 8 AM
+    briefing_recipient: str = ""  # defaults to imap_user
+
     # ── Dashboard ─────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
     port: int = 8000
