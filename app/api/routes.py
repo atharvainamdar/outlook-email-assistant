@@ -392,10 +392,32 @@ def api_voice_read_summary(
         raise HTTPException(404, "Email not found")
     if not em.summary:
         raise HTTPException(400, "Email not summarised yet")
-    path = read_email_summary_aloud(em.summary, language=language)
+    try:
+        path = read_email_summary_aloud(em.summary, language=language)
+    except Exception as exc:
+        logger.exception("Voice read-summary failed")
+        raise HTTPException(500, f"TTS error: {exc}") from exc
     if not path:
-        raise HTTPException(500, "TTS generation failed")
+        raise HTTPException(500, "TTS generation returned no audio")
     return {"audio_path": path, "language": language}
+
+
+@router.post("/voice/test-tts")
+def api_voice_test_tts(
+    text: str = "Hello, this is a test.",
+    language: str = "hi-IN",
+    speaker: str = "priya",
+):
+    """Quick TTS test endpoint for diagnostics."""
+    from app.services.voice_service import text_to_speech
+    try:
+        path = text_to_speech(text, language=language, speaker=speaker)
+        if not path:
+            return {"status": "failed", "detail": "No audio returned"}
+        return {"status": "ok", "audio_path": path}
+    except Exception as exc:
+        logger.exception("TTS test failed")
+        return {"status": "error", "detail": str(exc)}
 
 
 # ── Language Processing ───────────────────────────────────────────────────────
