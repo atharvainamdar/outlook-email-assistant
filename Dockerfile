@@ -7,13 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python deps only (cached layer) — do NOT install the app package
-COPY pyproject.toml .
-RUN pip install --no-cache-dir $(python3 -c "
-import tomllib, pathlib
-d = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
-print(' '.join(d['project']['dependencies']))
-")
+# Install Python deps only (cached layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app source (always fresh — never cached by pip)
 COPY app/ app/
