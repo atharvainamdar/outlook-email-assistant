@@ -80,14 +80,22 @@ def save_settings(updates: dict) -> dict:
 
 
 def _apply_to_runtime(saved: dict) -> None:
-    """Push saved values into the running Settings singleton."""
+    """Push saved values into the running Settings singleton.
+
+    Skips empty saved values when a non-empty value already exists
+    (e.g. loaded from environment variables) to avoid overwriting.
+    """
     for key, value in saved.items():
-        if key in CONFIGURABLE_FIELDS and hasattr(settings, key):
-            try:
-                field_type = type(getattr(settings, key))
-                object.__setattr__(settings, key, field_type(value))
-            except (ValueError, TypeError) as exc:
-                logger.warning("Cannot apply setting %s=%r: %s", key, value, exc)
+        if key not in CONFIGURABLE_FIELDS or not hasattr(settings, key):
+            continue
+        current = getattr(settings, key)
+        if not value and current:
+            continue
+        try:
+            field_type = type(current)
+            object.__setattr__(settings, key, field_type(value))
+        except (ValueError, TypeError) as exc:
+            logger.warning("Cannot apply setting %s=%r: %s", key, value, exc)
 
     if "smtp_user" not in saved and settings.imap_user:
         object.__setattr__(settings, "smtp_user", settings.imap_user)
