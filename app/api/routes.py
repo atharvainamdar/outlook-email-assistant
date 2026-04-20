@@ -37,14 +37,15 @@ from app.services.ai_service import draft_reply, summarise_email
 from app.services.backup_service import backup_emails, get_backup_size_mb, list_backups
 from app.services.briefing_service import generate_briefing_html, send_daily_briefing
 from app.services.categorisation_service import categorise_email, get_priority_order
+from app.services.language_service import (
+    detect_language,
+    process_multilingual_email,
+    translate_summary_to_original,
+)
 from app.services.nlp_search_service import natural_language_search
 from app.services.smtp_service import send_email
-from app.services.voice_service import (
-    is_configured as voice_configured,
-)
-from app.services.voice_service import (
-    read_email_summary_aloud,
-)
+from app.services.voice_service import is_configured as voice_configured
+from app.services.voice_service import read_email_summary_aloud
 from app.services.webhook_service import ingest_forwarded_email
 from app.services.whatsapp_service import WhatsAppService
 
@@ -388,3 +389,55 @@ def api_voice_read_summary(
     if not path:
         raise HTTPException(500, "TTS generation failed")
     return {"audio_path": path, "language": language}
+
+
+# ── Language Processing ───────────────────────────────────────────────────────
+
+@router.get("/emails/{email_id}/language")
+def api_detect_language(email_id: str):
+    """Detect the language of an email."""
+    em = get_email(email_id)
+    if not em:
+        raise HTTPException(404, "Email not found")
+    body = em.body_text or em.body_html or ""
+    lang = detect_language(body)
+    return {"email_id": em.id, "language": lang}
+
+
+@router.post("/emails/{email_id}/translate")
+def api_translate_email(email_id: str, target_lang: str = "en"):
+    """Translate an email to English (or another language)."""
+    em = get_email(email_id)
+    if not em:
+        raise HTTPException(404, "Email not found")
+    body = em.body_text or em.body_html or ""
+    result = process_multilingual_email(body, subject=em.subject)
+    # Also translate summary if available
+    translated_summary = ""
+    if em.summary and target_lang != "en":
+        translated_summary = translate_summary_to_original(
+            em.summary, target_lang
+        )
+    result["translated_summary"] = translated_summary
+    return result
+
+
+@router.post("/translate")
+def api_translate_text(
+    text: str = "",
+    source_lang: str = "",
+    target_lang: str = "en",
+):
+    """Translate arbitrary text between languages."""
+    if not text:
+        raise HTTPException(400, "Text required")
+    if not source_lang:
+        source_lang = detect_language(text)
+    from app.services.language_service import translate_text
+    translated = translate_text(text, source_lang, target_lang)
+    return {
+        "original": text,
+        "translated": translated,
+        "source_lang": source_lang,
+        "target_lang": target_lang,
+    }
