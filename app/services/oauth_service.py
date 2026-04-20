@@ -13,8 +13,6 @@ logger = logging.getLogger(__name__)
 SCOPES = [
     "https://outlook.office365.com/IMAP.AccessAsUser.All",
     "https://outlook.office365.com/SMTP.Send",
-    "offline_access",
-    "User.Read",
 ]
 
 TOKEN_FILE = Path(settings.data_dir) / "ms_token_cache.json"

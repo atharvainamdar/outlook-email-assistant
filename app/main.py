@@ -100,13 +100,26 @@ async def auth_login():
     """Redirect user to Microsoft login page."""
     from app.services.oauth_service import get_auth_url, is_configured
     if not is_configured():
-        return HTMLResponse(
-            "<h2>OAuth2 not configured</h2>"
-            "<p>Set MS_CLIENT_ID and MS_CLIENT_SECRET in settings.</p>"
-        )
-    url = get_auth_url()
+        return templates.TemplateResponse("auth_result.html", {
+            "request": {},
+            "success": False,
+            "error": "Email sign-in is not set up yet. Please contact support.",
+        })
+    try:
+        url = get_auth_url()
+    except Exception as exc:
+        logger.exception("Failed to generate OAuth2 login URL")
+        return templates.TemplateResponse("auth_result.html", {
+            "request": {},
+            "success": False,
+            "error": f"Could not connect to Microsoft. Please try again. ({exc})",
+        })
     if not url:
-        return HTMLResponse("<h2>Failed to generate login URL</h2>")
+        return templates.TemplateResponse("auth_result.html", {
+            "request": {},
+            "success": False,
+            "error": "Could not generate login link. Please try again.",
+        })
     return RedirectResponse(url)
 
 

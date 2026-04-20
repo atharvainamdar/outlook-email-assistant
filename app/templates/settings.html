@@ -3,7 +3,7 @@
 {% block content %}
 <div class="page-header">
     <h1>Settings</h1>
-    <p class="subtitle">Configure your email connection — no technical knowledge needed</p>
+    <p class="subtitle">Manage your email connection and preferences</p>
 </div>
 
 <div class="section">
@@ -12,136 +12,78 @@
     </div>
 </div>
 
-<!-- Step 1: Email Connection -->
+<!-- Email Connection -->
 <div class="section">
-    <h2>Step 1: Connect Your Email</h2>
+    <h2>Email Connection</h2>
 
     <!-- Microsoft Sign-In (recommended) -->
     <div class="guide-card" id="msAuthCard" style="margin-bottom:1.5rem;border:2px solid var(--accent);padding:1.5rem;">
-        <h3 style="margin-top:0;">Recommended: Sign in with Microsoft</h3>
-        <p style="color:var(--text-secondary);margin-bottom:1rem;">One click — no password needed. Works with Outlook, Office 365, and Hotmail.</p>
         <div id="msAuthStatus" style="margin-bottom:1rem;"></div>
         <button class="btn btn-primary btn-lg" id="msSignInBtn" onclick="window.location.href='/auth/login'" style="background:#0078d4;font-size:1.1rem;padding:0.8rem 2rem;">
-            <span style="margin-right:0.5rem;">&#xf3ca;</span> Sign in with Microsoft
+            Sign in with Microsoft
         </button>
-        <button class="btn" id="msSignOutBtn" onclick="msSignOut()" style="display:none;margin-left:1rem;">Sign Out</button>
+        <button class="btn" id="msSignOutBtn" onclick="msSignOut()" style="display:none;margin-left:1rem;">Disconnect</button>
+        <p style="color:var(--text-secondary);margin-top:0.75rem;margin-bottom:0;font-size:0.85rem;">Secure sign-in through Microsoft. Your password is never stored in this app.</p>
     </div>
-
-    <!-- Manual IMAP (fallback) -->
-    <details id="manualImapSection">
-        <summary style="cursor:pointer;color:var(--text-secondary);margin-bottom:1rem;">Or connect manually with email &amp; password</summary>
-        <div class="settings-form" style="margin-top:1rem;">
-            <div class="form-group">
-                <label for="imap_user">Email Address</label>
-                <input type="email" id="imap_user" placeholder="your-email@company.com">
-                <span class="form-hint">Your Outlook or company email address</span>
-            </div>
-            <div class="form-group">
-                <label for="imap_password">Password</label>
-                <input type="password" id="imap_password" placeholder="Your password or App Password">
-                <span class="form-hint">If your account uses 2FA, use an App Password instead</span>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="imap_host">Email Server</label>
-                    <input type="text" id="imap_host" placeholder="outlook.office365.com" value="outlook.office365.com">
-                </div>
-                <div class="form-group">
-                    <label for="imap_port">Port</label>
-                    <input type="number" id="imap_port" placeholder="993" value="993">
-                </div>
-            </div>
-            <div class="form-actions">
-                <button class="btn btn-primary" onclick="saveAndTest()">Save &amp; Test Connection</button>
-                <span id="testResult" class="form-result"></span>
-            </div>
-        </div>
-    </details>
 </div>
 
-<!-- Step 2: AI (Optional) -->
+<!-- Preferences -->
 <div class="section">
-    <h2>Step 2: AI Summarisation (Optional)</h2>
-    <p class="section-hint">Without this, the tool still works — it just won't auto-summarise emails.</p>
+    <h2>Preferences</h2>
     <div class="settings-form">
         <div class="form-group">
-            <label for="ai_provider">AI Provider</label>
-            <select id="ai_provider" style="width:100%;padding:0.6rem 0.85rem;border:1px solid var(--border);border-radius:var(--radius);font-size:0.95rem;background:var(--bg);">
-                <option value="azure">Azure OpenAI (api-key header)</option>
-                <option value="azure_serverless">Azure AI Foundry Serverless (Bearer token)</option>
-                <option value="moonshot">Moonshot / Kimi (direct API)</option>
-                <option value="openai_compat">OpenAI Compatible</option>
-            </select>
-            <span class="form-hint">Choose based on your AI service setup</span>
+            <label for="briefing_hour">Daily Briefing Time</label>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <input type="number" id="briefing_hour" min="0" max="23" value="8" style="width:80px;">
+                <span class="form-hint" style="margin:0;">e.g. 8 = 8:00 AM, 20 = 8:00 PM</span>
+            </div>
         </div>
         <div class="form-group">
-            <label for="azure_ai_endpoint">AI Endpoint</label>
-            <input type="text" id="azure_ai_endpoint" placeholder="https://your-resource.openai.azure.com/">
-        </div>
-        <div class="form-group">
-            <label for="azure_ai_key">AI API Key</label>
-            <input type="password" id="azure_ai_key" placeholder="Your AI API key">
-        </div>
-        <div class="form-group">
-            <label for="azure_ai_model">Model Name</label>
-            <input type="text" id="azure_ai_model" placeholder="Kimi-K2.5" value="Kimi-K2.5">
+            <label for="briefing_recipient">Send Daily Briefing To</label>
+            <input type="email" id="briefing_recipient" placeholder="Your email address">
+            <span class="form-hint">You'll get a summary of all important emails every day at the time above</span>
         </div>
     </div>
 </div>
 
-<!-- Step 3: Indian Languages (Optional) -->
+<!-- Features Status -->
 <div class="section">
-    <h2>Step 3: Indian Language Support (Optional)</h2>
-    <p class="section-hint">Enable Hindi, Marathi, Tamil, Telugu voice and translation via Sarvam AI.</p>
-    <div class="settings-form">
-        <div class="form-group">
-            <label for="sarvam_api_key">Sarvam API Key</label>
-            <input type="password" id="sarvam_api_key" placeholder="Your Sarvam AI API key">
-        </div>
-    </div>
-</div>
-
-<!-- Step 4: WhatsApp (Optional) -->
-<div class="section">
-    <h2>Step 4: WhatsApp Alerts (Optional)</h2>
-    <p class="section-hint">Get urgent email alerts and daily briefings on WhatsApp.</p>
-    <div class="settings-form">
-        <div class="form-group">
-            <label for="whatsapp_token">WhatsApp Business Token</label>
-            <input type="password" id="whatsapp_token" placeholder="WhatsApp Cloud API token">
-        </div>
-        <div class="form-group">
-            <label for="whatsapp_dad_phone">Your WhatsApp Number</label>
-            <input type="tel" id="whatsapp_dad_phone" placeholder="+91XXXXXXXXXX">
-        </div>
-        <div class="form-group">
-            <label for="whatsapp_secretary_phone">Secretary's WhatsApp Number</label>
-            <input type="tel" id="whatsapp_secretary_phone" placeholder="+91XXXXXXXXXX">
-        </div>
-    </div>
-</div>
-
-<!-- Daily Briefing -->
-<div class="section">
-    <h2>Daily Briefing</h2>
-    <div class="settings-form">
-        <div class="form-row">
-            <div class="form-group">
-                <label for="briefing_hour">Briefing Time (hour, 24h)</label>
-                <input type="number" id="briefing_hour" min="0" max="23" value="8">
-                <span class="form-hint">e.g. 8 = 8:00 AM, 20 = 8:00 PM</span>
+    <h2>Features</h2>
+    <div id="featuresPanel" style="display:grid;gap:0.75rem;">
+        <div class="guide-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>AI Email Summarisation</strong>
+                <p style="color:var(--text-secondary);margin:0.25rem 0 0;font-size:0.85rem;">Automatically summarises every email so you can read them quickly</p>
             </div>
-            <div class="form-group">
-                <label for="briefing_recipient">Send Briefing To</label>
-                <input type="email" id="briefing_recipient" placeholder="Same as your email">
+            <span id="featureAI" class="status-badge">Checking...</span>
+        </div>
+        <div class="guide-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>Indian Language Support</strong>
+                <p style="color:var(--text-secondary);margin:0.25rem 0 0;font-size:0.85rem;">Hindi, Marathi, Tamil, Telugu translation</p>
             </div>
+            <span id="featureLang" class="status-badge">Checking...</span>
+        </div>
+        <div class="guide-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>Smart Sales Tracking</strong>
+                <p style="color:var(--text-secondary);margin:0.25rem 0 0;font-size:0.85rem;">Auto-extracts prices, tracks customers, monitors quotations</p>
+            </div>
+            <span id="featureSales" class="status-badge" style="background:var(--success);color:white;padding:0.25rem 0.75rem;border-radius:1rem;font-size:0.8rem;">Active</span>
+        </div>
+        <div class="guide-card" style="padding:1rem;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>AI Assistant (Chatbot)</strong>
+                <p style="color:var(--text-secondary);margin:0.25rem 0 0;font-size:0.85rem;">Ask questions about your emails, get suggestions, draft replies</p>
+            </div>
+            <span id="featureChat" class="status-badge">Checking...</span>
         </div>
     </div>
 </div>
 
 <div class="section">
     <div class="form-actions">
-        <button class="btn btn-primary btn-lg" onclick="saveAll()">Save All Settings</button>
+        <button class="btn btn-primary btn-lg" onclick="saveAll()">Save Preferences</button>
         <span id="saveResult" class="form-result"></span>
     </div>
 </div>
@@ -160,41 +102,23 @@
         </ol>
     </div>
 </div>
-
-<!-- Alternative: Email Forwarding -->
-<div class="section">
-    <h2>Alternative: Email Forwarding</h2>
-    <div class="guide-card">
-        <p>If your company blocks direct email access (IMAP), you can forward emails instead:</p>
-        <ol>
-            <li>In Outlook, go to <strong>Settings &rarr; Mail &rarr; Rules</strong></li>
-            <li>Create a rule: Forward all incoming emails to a personal email</li>
-            <li>Point this tool at your personal email, or use the webhook below</li>
-        </ol>
-        <p><strong>Webhook URL:</strong> <code id="webhookUrl"></code></p>
-    </div>
-</div>
 {% endblock %}
 {% block scripts %}
 <script>
-const FIELDS = [
-    'imap_host','imap_port','imap_user','imap_password',
-    'ai_provider','azure_ai_endpoint','azure_ai_key','azure_ai_model',
-    'sarvam_api_key',
-    'whatsapp_token','whatsapp_dad_phone','whatsapp_secretary_phone',
-    'briefing_hour','briefing_recipient'
-];
+// Only save user-facing preferences — technical config is managed by admin
+const PREF_FIELDS = ['briefing_hour', 'briefing_recipient'];
 
 async function loadSettings() {
     try {
         const cfg = await api('/api/settings/config');
-        FIELDS.forEach(f => {
+        PREF_FIELDS.forEach(f => {
             const el = document.getElementById(f);
             if (el && cfg[f] !== undefined && cfg[f] !== '') {
                 el.value = cfg[f];
             }
         });
         updateStatus(cfg);
+        updateFeatures(cfg);
     } catch(e) {
         console.error('Failed to load settings', e);
     }
@@ -204,33 +128,20 @@ function updateStatus(cfg) {
     const panel = document.getElementById('statusPanel');
     let html = '<div class="status-item status-ok">Server: Running</div>';
     if (cfg.is_configured) {
-        html += '<div class="status-item status-ok">Email: Configured</div>';
+        html += '<div class="status-item status-ok">Email: Connected</div>';
     } else {
-        html += '<div class="status-item status-warn">Email: Not configured — fill in Step 1 below</div>';
-    }
-    if (cfg.has_ai) {
-        html += '<div class="status-item status-ok">AI Summarisation: Enabled</div>';
-    } else {
-        html += '<div class="status-item status-warn">AI: Not configured (optional)</div>';
-    }
-    if (cfg.has_sarvam) {
-        html += '<div class="status-item status-ok">Indian Languages: Enabled</div>';
-    }
-    if (cfg.has_whatsapp) {
-        html += '<div class="status-item status-ok">WhatsApp: Enabled</div>';
+        html += '<div class="status-item status-warn">Email: Not connected — click "Sign in with Microsoft" below</div>';
     }
     panel.innerHTML = html;
 }
 
-function gatherSettings() {
-    const data = {};
-    FIELDS.forEach(f => {
-        const el = document.getElementById(f);
-        if (el) {
-            data[f] = el.value;
-        }
-    });
-    return data;
+function updateFeatures(cfg) {
+    const badge = (ok) => ok
+        ? '<span style="background:var(--success);color:white;padding:0.25rem 0.75rem;border-radius:1rem;font-size:0.8rem;">Active</span>'
+        : '<span style="background:var(--border);color:var(--text-secondary);padding:0.25rem 0.75rem;border-radius:1rem;font-size:0.8rem;">Not configured</span>';
+    document.getElementById('featureAI').innerHTML = badge(cfg.has_ai);
+    document.getElementById('featureLang').innerHTML = badge(cfg.has_sarvam);
+    document.getElementById('featureChat').innerHTML = badge(cfg.has_ai);
 }
 
 async function saveAll() {
@@ -239,50 +150,27 @@ async function saveAll() {
     btn.disabled = true;
     btn.textContent = 'Saving...';
     try {
+        const data = {};
+        PREF_FIELDS.forEach(f => {
+            const el = document.getElementById(f);
+            if (el) data[f] = el.value;
+        });
         const cfg = await api('/api/settings/config', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(gatherSettings())
+            body: JSON.stringify(data)
         });
         updateStatus(cfg);
+        updateFeatures(cfg);
         result.className = 'form-result success';
-        result.textContent = 'Settings saved!';
-        showToast('Settings saved successfully!', 'info');
+        result.textContent = 'Preferences saved!';
+        showToast('Preferences saved!', 'info');
     } catch(e) {
         result.className = 'form-result error';
         result.textContent = 'Failed to save: ' + e.message;
     }
     btn.disabled = false;
-    btn.textContent = 'Save All Settings';
-}
-
-async function saveAndTest() {
-    const btn = event.target;
-    const result = document.getElementById('testResult');
-    btn.disabled = true;
-    btn.textContent = 'Testing...';
-    try {
-        await api('/api/settings/config', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(gatherSettings())
-        });
-        const test = await api('/api/settings/test-imap', {method: 'POST'});
-        if (test.ok) {
-            result.className = 'form-result success';
-            result.textContent = 'Connected successfully!';
-            showToast('Email connection works!', 'info');
-        } else {
-            result.className = 'form-result error';
-            result.textContent = test.message || 'Connection failed';
-        }
-    } catch(e) {
-        result.className = 'form-result error';
-        result.textContent = 'Test failed: ' + e.message;
-    }
-    btn.disabled = false;
-    btn.textContent = 'Save & Test Connection';
-    loadSettings();
+    btn.textContent = 'Save Preferences';
 }
 
 // Microsoft OAuth2 status
@@ -295,14 +183,14 @@ async function checkMsAuth() {
         const signOutBtn = document.getElementById('msSignOutBtn');
 
         if (!data.configured) {
-            statusEl.innerHTML = '<span style="color:var(--text-secondary);">OAuth2 not configured yet — admin setup needed.</span>';
+            statusEl.innerHTML = '<span style="color:var(--text-secondary);">Email sign-in is being set up. Please check back shortly.</span>';
             signInBtn.style.display = 'none';
         } else if (data.signed_in) {
-            statusEl.innerHTML = '<span style="color:var(--success);font-weight:600;">Connected as: ' + (data.email || data.name || 'Microsoft Account') + '</span>';
+            statusEl.innerHTML = '<span style="color:var(--success);font-weight:600;font-size:1.1rem;">&#10003; Connected: ' + (data.email || data.name || 'Microsoft Account') + '</span>';
             signInBtn.style.display = 'none';
             signOutBtn.style.display = 'inline-block';
         } else {
-            statusEl.innerHTML = '<span style="color:var(--text-secondary);">Not signed in yet</span>';
+            statusEl.innerHTML = '<span style="color:var(--text-secondary);">Sign in to connect your Outlook email</span>';
             signInBtn.style.display = 'inline-block';
             signOutBtn.style.display = 'none';
         }
@@ -312,19 +200,15 @@ async function checkMsAuth() {
 }
 
 async function msSignOut() {
-    if (!confirm('Sign out of Microsoft account?')) return;
+    if (!confirm('Disconnect your Microsoft account?')) return;
     try {
         await fetch('/auth/signout', {method: 'POST'});
-        showToast('Signed out', 'info');
+        showToast('Disconnected', 'info');
         checkMsAuth();
     } catch(e) {
-        showToast('Sign out failed', 'error');
+        showToast('Failed to disconnect', 'error');
     }
 }
-
-// Set webhook URL based on current host
-document.getElementById('webhookUrl').textContent =
-    window.location.origin + '/api/webhook/ingest';
 
 loadSettings();
 checkMsAuth();
