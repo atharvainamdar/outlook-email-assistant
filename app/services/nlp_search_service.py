@@ -12,6 +12,13 @@ from app.config import settings
 from app.database import list_emails, search_emails
 from app.models.email import EmailMessage
 
+
+def _ensure_aware(dt: datetime | None) -> datetime | None:
+    """Treat naive datetimes as UTC so comparisons never raise TypeError."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
 logger = logging.getLogger(__name__)
 
 _SEARCH_SYSTEM = """You are a search query parser for an email system.
@@ -147,12 +154,12 @@ def natural_language_search(
     if date_from:
         results = [
             e for e in results
-            if e.date and e.date >= date_from
+            if e.date and _ensure_aware(e.date) >= date_from
         ]
     if date_to:
         results = [
             e for e in results
-            if e.date and e.date <= date_to
+            if e.date and _ensure_aware(e.date) <= date_to
         ]
 
     return {

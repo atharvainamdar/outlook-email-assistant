@@ -9,6 +9,13 @@ from datetime import datetime, timedelta, timezone
 from app.database import get_tasks, list_emails
 from app.services.attachment_service import extract_prices, extract_product_mentions
 
+
+def _ensure_aware(dt: datetime | None) -> datetime | None:
+    """Treat naive datetimes as UTC so comparisons never raise TypeError."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,7 +89,8 @@ def get_customer_trail(domain: str, limit: int = 100) -> dict:
             if sender_domain == domain:
                 contacts.add(em.sender_name or em.sender)
 
-    trail.sort(key=lambda e: e.date or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    _utc_min = datetime.min.replace(tzinfo=timezone.utc)
+    trail.sort(key=lambda e: _ensure_aware(e.date) or _utc_min, reverse=True)
     trail = trail[:limit]
 
     # Extract price mentions across all emails in this trail
@@ -131,9 +139,9 @@ def get_sales_overview() -> dict:
     month_ago = today - timedelta(days=30)
 
     # Count by time period
-    today_count = sum(1 for e in all_emails if e.date and e.date >= today)
-    week_count = sum(1 for e in all_emails if e.date and e.date >= week_ago)
-    month_count = sum(1 for e in all_emails if e.date and e.date >= month_ago)
+    today_count = sum(1 for e in all_emails if e.date and _ensure_aware(e.date) >= today)
+    week_count = sum(1 for e in all_emails if e.date and _ensure_aware(e.date) >= week_ago)
+    month_count = sum(1 for e in all_emails if e.date and _ensure_aware(e.date) >= month_ago)
 
     # Unique customers (by domain)
     domains = set()
@@ -146,7 +154,7 @@ def get_sales_overview() -> dict:
     follow_ups_needed = len(open_tasks)
 
     # Price mentions in recent emails (last 30 days)
-    recent = [e for e in all_emails if e.date and e.date >= month_ago]
+    recent = [e for e in all_emails if e.date and _ensure_aware(e.date) >= month_ago]
     total_price_mentions = 0
     for em in recent:
         text = f"{em.subject} {em.body_text}"
