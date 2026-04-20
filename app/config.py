@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # ── AI Provider (summarisation / drafting) ────────────────────────────
     # provider: "azure" (Azure OpenAI), "azure_serverless" (AI Foundry),
     #           "moonshot" (Kimi direct), "openai_compat" (any compatible)
-    ai_provider: str = "azure_serverless"
+    ai_provider: str = "azure"
     azure_ai_endpoint: str = ""
     azure_ai_key: str = ""
     azure_ai_model: str = "kimi-k2.5"

@@ -61,21 +61,21 @@ def speech_to_text(
     url = f"{SARVAM_BASE}/speech-to-text"
     try:
         with open(audio_path, "rb") as f:
-            audio_bytes = f.read()
-
-        b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
-        payload = {
-            "input": b64_audio,
-            "config": {
-                "language": {"sourceLanguage": language},
-                "audioFormat": "wav",
-                "encoding": "base64",
-            },
-        }
-        resp = httpx.post(url, json=payload, headers=_headers(), timeout=30)
+            files = {"file": (audio_path, f, "audio/wav")}
+            data_fields = {
+                "language_code": language,
+                "model": "saaras:v3",
+            }
+            resp = httpx.post(
+                url,
+                files=files,
+                data=data_fields,
+                headers={"api-subscription-key": _sarvam_key()},
+                timeout=30,
+            )
         resp.raise_for_status()
         data = resp.json()
-        transcript = data.get("output", [{}])[0].get("source", "")
+        transcript = data.get("transcript", "")
         logger.info("STT result (%s): %s", language, transcript[:80])
         return transcript
     except Exception:
@@ -97,30 +97,16 @@ def speech_to_text_translate(
             "english": "[Voice not configured]",
         }
 
-    url = f"{SARVAM_BASE}/speech-to-text-translate"
-    try:
-        with open(audio_path, "rb") as f:
-            audio_bytes = f.read()
+    transcript = speech_to_text(audio_path, language=source_language)
+    if not transcript or transcript.startswith("["):
+        return {"original": "", "english": "[Transcription failed]"}
 
-        b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
-        payload = {
-            "input": b64_audio,
-            "config": {
-                "language": {"sourceLanguage": source_language},
-                "audioFormat": "wav",
-                "encoding": "base64",
-            },
-        }
-        resp = httpx.post(url, json=payload, headers=_headers(), timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        return {
-            "original": data.get("output", [{}])[0].get("source", ""),
-            "english": data.get("output", [{}])[0].get("target", ""),
-        }
-    except Exception:
-        logger.exception("Speech-to-text-translate failed")
-        return {"original": "", "english": "[Translation failed]"}
+    english = translate_text(
+        transcript,
+        source_lang=source_language,
+        target_lang=LANG_ENGLISH,
+    )
+    return {"original": transcript, "english": english}
 
 
 # ── Text to Speech ────────────────────────────────────────────────────────
@@ -128,14 +114,14 @@ def speech_to_text_translate(
 def text_to_speech(
     text: str,
     language: str = LANG_HINDI,
-    speaker: str = "meera",
+    speaker: str = "anushka",
 ) -> str | None:
     """Convert text to speech using Sarvam Bulbul v3.
 
     Args:
         text: Text to speak.
-        language: Output language code.
-        speaker: Voice name (meera, arvind, etc.)
+        language: Output language code (BCP-47, e.g. hi-IN).
+        speaker: Voice name (anushka, shubh, ritu, aditya, etc.)
 
     Returns:
         Path to generated audio file, or None on failure.
@@ -146,18 +132,17 @@ def text_to_speech(
     url = f"{SARVAM_BASE}/text-to-speech"
     try:
         payload = {
-            "input": text[:1000],  # API limit
-            "config": {
-                "language": {"sourceLanguage": language},
-                "gender": "female" if speaker == "meera" else "male",
-                "speaker": speaker,
-            },
+            "text": text[:2500],
+            "target_language_code": language,
+            "speaker": speaker,
+            "model": "bulbul:v3",
         }
         resp = httpx.post(url, json=payload, headers=_headers(), timeout=30)
         resp.raise_for_status()
         data = resp.json()
 
-        audio_b64 = data.get("audio", "")
+        audios = data.get("audios", [])
+        audio_b64 = audios[0] if audios else data.get("audio", "")
         if not audio_b64:
             return None
 
@@ -190,13 +175,14 @@ def translate_text(
     try:
         payload = {
             "input": text,
-            "sourceLanguage": source_lang.split("-")[0],
-            "targetLanguage": target_lang.split("-")[0],
+            "source_language_code": source_lang,
+            "target_language_code": target_lang,
+            "model": "mayura:v2",
         }
         resp = httpx.post(url, json=payload, headers=_headers(), timeout=15)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("output", text)
+        return data.get("translated_text", text)
     except Exception:
         logger.exception("Translation failed")
         return text
