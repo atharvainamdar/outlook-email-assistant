@@ -73,6 +73,21 @@ async def settings_page(request: Request):
     return templates.TemplateResponse(request, "settings.html")
 
 
+@app.get("/sales", response_class=HTMLResponse)
+async def sales_page(request: Request):
+    return templates.TemplateResponse(request, "sales.html")
+
+
+@app.get("/customers", response_class=HTMLResponse)
+async def customers_page(request: Request):
+    return templates.TemplateResponse(request, "customers.html")
+
+
+@app.get("/prices", response_class=HTMLResponse)
+async def prices_page(request: Request):
+    return templates.TemplateResponse(request, "prices.html")
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "app": settings.app_title}

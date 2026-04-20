@@ -200,7 +200,7 @@ function gatherSettings() {
     const data = {};
     FIELDS.forEach(f => {
         const el = document.getElementById(f);
-        if (el && el.value) {
+        if (el) {
             data[f] = el.value;
         }
     });

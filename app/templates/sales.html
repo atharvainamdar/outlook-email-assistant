@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Sales Overview — Ariya Email Assistant{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Sales Overview</h1>
+    <p class="subtitle">Hello Ramesh sir — here is your sales command centre</p>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="pageLoader">
+    <div class="loader-content">
+        <div class="spinner"></div>
+        <p class="loader-text">Loading your sales data...</p>
+    </div>
+</div>
+
+<!-- Stats cards -->
+<div class="stats-grid" id="salesStats">
+    <div class="stat-card">
+        <div class="stat-number" id="statToday">—</div>
+        <div class="stat-label">Emails Today</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statWeek">—</div>
+        <div class="stat-label">This Week</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statMonth">—</div>
+        <div class="stat-label">This Month</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statCustomers">—</div>
+        <div class="stat-label">Active Customers</div>
+    </div>
+    <div class="stat-card highlight-card">
+        <div class="stat-number" id="statFollowUps">—</div>
+        <div class="stat-label">Follow-ups Needed</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statPrices">—</div>
+        <div class="stat-label">Price Mentions</div>
+    </div>
+</div>
+
+<!-- Top Customers -->
+<div class="section">
+    <h2>Top Customers This Month</h2>
+    <div class="customer-bar-list" id="topCustomers">
+        <p class="empty-state loading-text">Analysing your emails...</p>
+    </div>
+</div>
+
+<!-- Follow-ups Needed -->
+<div class="section">
+    <h2>Pending Follow-ups</h2>
+    <div class="task-list" id="followUpList">
+        <p class="empty-state loading-text">Checking pending tasks...</p>
+    </div>
+</div>
+
+<!-- Recent Emails -->
+<div class="section">
+    <h2>Latest Emails</h2>
+    <div class="email-list" id="recentEmails">
+        <p class="empty-state loading-text">Fetching recent emails...</p>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadSalesOverview() {
+    const loader = document.getElementById('pageLoader');
+    loader.style.display = 'flex';
+    try {
+        const data = await api('/api/sales/overview');
+
+        document.getElementById('statToday').textContent = data.today_emails;
+        document.getElementById('statWeek').textContent = data.week_emails;
+        document.getElementById('statMonth').textContent = data.month_emails;
+        document.getElementById('statCustomers').textContent = data.active_customers;
+        document.getElementById('statFollowUps').textContent = data.follow_ups_needed;
+        document.getElementById('statPrices').textContent = data.price_mentions;
+
+        // Top customers
+        const topEl = document.getElementById('topCustomers');
+        if (data.top_customers && data.top_customers.length > 0) {
+            const maxCount = data.top_customers[0].count;
+            topEl.innerHTML = data.top_customers.map(c => {
+                const pct = Math.round((c.count / maxCount) * 100);
+                return `<div class="customer-bar-item" onclick="window.location='/customers?domain=${encodeURIComponent(c.domain)}'">
+                    <div class="customer-bar-name">${escHtml(c.company)}</div>
+                    <div class="customer-bar-track">
+                        <div class="customer-bar-fill" style="width:${pct}%"></div>
+                    </div>
+                    <div class="customer-bar-count">${c.count} emails</div>
+                </div>`;
+            }).join('');
+        } else {
+            topEl.innerHTML = '<p class="empty-state">No customer data yet. Emails will appear here once received.</p>';
+        }
+
+        // Follow-ups
+        const fuEl = document.getElementById('followUpList');
+        if (data.open_tasks && data.open_tasks.length > 0) {
+            fuEl.innerHTML = data.open_tasks.map(t => {
+                const pClass = t.priority === 'high' ? 'priority-high' : t.priority === 'low' ? 'priority-low' : 'priority-medium';
+                return `<div class="task-card ${pClass}">
+                    <div class="task-header">
+                        <span class="task-title">${escHtml(t.title)}</span>
+                        <span class="badge badge-${t.priority}">${t.priority}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        } else {
+            fuEl.innerHTML = '<p class="empty-state">No pending follow-ups. You are all caught up!</p>';
+        }
+
+        // Recent emails
+        const reEl = document.getElementById('recentEmails');
+        if (data.recent_emails && data.recent_emails.length > 0) {
+            reEl.innerHTML = data.recent_emails.map(e => {
+                const date = e.date ? new Date(e.date).toLocaleString('en-IN') : '';
+                return `<div class="email-card clickable" onclick="window.location='/emails'">
+                    <div class="email-card-header">
+                        <strong>${escHtml(e.sender)}</strong>
+                        <span class="email-date">${date}</span>
+                    </div>
+                    <div class="email-card-subject">${escHtml(e.subject)}</div>
+                </div>`;
+            }).join('');
+        } else {
+            reEl.innerHTML = '<p class="empty-state">No emails yet. Connect your email in Settings to get started.</p>';
+        }
+
+    } catch(e) {
+        console.error('Sales overview error:', e);
+        showToast('Could not load sales data', 'error');
+    }
+    loader.style.display = 'none';
+}
+
+loadSalesOverview();
+</script>
+{% endblock %}

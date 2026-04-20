@@ -43,6 +43,12 @@ from app.services.language_service import (
     translate_summary_to_original,
 )
 from app.services.nlp_search_service import natural_language_search
+from app.services.sales_service import (
+    get_customer_trail,
+    get_customers,
+    get_price_matrix,
+    get_sales_overview,
+)
 from app.services.settings_store import get_current_settings, save_settings
 from app.services.smtp_service import send_email
 from app.services.voice_service import is_configured as voice_configured
@@ -465,3 +471,29 @@ def api_test_imap():
     svc = IMAPService()
     ok, msg = svc.test_connection()
     return {"ok": ok, "message": msg}
+
+
+# ── Sales Intelligence ────────────────────────────────────────────────────────
+
+@router.get("/sales/overview")
+def api_sales_overview():
+    """Sales dashboard data — email counts, top customers, follow-ups."""
+    return get_sales_overview()
+
+
+@router.get("/sales/customers")
+def api_customers(limit: int = 200):
+    """List all customers grouped by email domain."""
+    return get_customers(limit=limit)
+
+
+@router.get("/sales/customers/{domain:path}")
+def api_customer_trail(domain: str, limit: int = 100):
+    """Get email trail for a specific customer domain."""
+    return get_customer_trail(domain, limit=limit)
+
+
+@router.get("/sales/price-matrix")
+def api_price_matrix(limit: int = 500):
+    """Extract pricing data across all emails, grouped by customer."""
+    return get_price_matrix(limit=limit)

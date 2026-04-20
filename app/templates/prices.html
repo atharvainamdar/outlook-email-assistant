@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Price Matrix — Ariya Email Assistant{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Price Matrix</h1>
+    <p class="subtitle">Compare prices across customers — see who is paying what for which product</p>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="pageLoader">
+    <div class="loader-content">
+        <div class="spinner"></div>
+        <p class="loader-text">Scanning emails for price mentions...</p>
+    </div>
+</div>
+
+<!-- Summary stats -->
+<div class="stats-grid" id="priceStats">
+    <div class="stat-card">
+        <div class="stat-number" id="statCompanies">—</div>
+        <div class="stat-label">Companies with Prices</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statTotalPrices">—</div>
+        <div class="stat-label">Total Price Mentions</div>
+    </div>
+</div>
+
+<!-- Search -->
+<div class="filters-bar">
+    <input type="text" id="priceSearch" class="search-input search-full"
+           placeholder="Search by company name, price, or context..."
+           oninput="filterPrices()">
+</div>
+
+<!-- Price matrix -->
+<div id="priceMatrix">
+    <p class="empty-state loading-text">Reading through your emails...</p>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let matrixData = [];
+
+async function loadPriceMatrix() {
+    const loader = document.getElementById('pageLoader');
+    loader.style.display = 'flex';
+    try {
+        const data = await api('/api/sales/price-matrix');
+        document.getElementById('statCompanies').textContent = data.total_companies;
+        document.getElementById('statTotalPrices').textContent = data.total_prices;
+        matrixData = data.matrix || [];
+        renderMatrix(matrixData);
+    } catch(e) {
+        console.error('Price matrix error:', e);
+        showToast('Could not load price data', 'error');
+    }
+    loader.style.display = 'none';
+}
+
+function renderMatrix(list) {
+    const el = document.getElementById('priceMatrix');
+    if (list.length === 0) {
+        el.innerHTML = '<p class="empty-state">No price mentions found yet. Prices like "Rs 150", "INR 5,000" etc. in emails will appear here automatically.</p>';
+        return;
+    }
+    el.innerHTML = list.map(company => {
+        const priceRows = company.prices.map(p => {
+            const date = p.email_date ? new Date(p.email_date).toLocaleDateString('en-IN') : '';
+            const products = (p.products || []).join(', ');
+            return `<tr>
+                <td class="price-val">${p.currency} ${p.value.toLocaleString('en-IN')}</td>
+                <td>${escHtml(products || '—')}</td>
+                <td class="price-ctx">${escHtml(p.context)}</td>
+                <td>${escHtml(p.email_subject || '')}</td>
+                <td>${date}</td>
+            </tr>`;
+        }).join('');
+
+        return `<div class="price-company-block">
+            <div class="price-company-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                <h3>${escHtml(company.company)}</h3>
+                <span class="badge badge-blue">${company.price_count} price(s)</span>
+                <span class="expand-icon">&#9660;</span>
+            </div>
+            <table class="price-table">
+                <thead>
+                    <tr>
+                        <th>Amount</th>
+                        <th>Product</th>
+                        <th>Context</th>
+                        <th>Email Subject</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>${priceRows}</tbody>
+            </table>
+        </div>`;
+    }).join('');
+}
+
+function filterPrices() {
+    const q = document.getElementById('priceSearch').value.toLowerCase();
+    if (!q) {
+        renderMatrix(matrixData);
+        return;
+    }
+    const filtered = matrixData.filter(c =>
+        c.company.toLowerCase().includes(q) ||
+        c.prices.some(p =>
+            p.context.toLowerCase().includes(q) ||
+            String(p.value).includes(q) ||
+            (p.email_subject || '').toLowerCase().includes(q) ||
+            (p.products || []).some(pr => pr.toLowerCase().includes(q))
+        )
+    );
+    renderMatrix(filtered);
+}
+
+loadPriceMatrix();
+</script>
+{% endblock %}
