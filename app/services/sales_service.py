@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.database import get_tasks, list_emails
 from app.services.attachment_service import extract_prices, extract_product_mentions
@@ -82,7 +82,7 @@ def get_customer_trail(domain: str, limit: int = 100) -> dict:
             if sender_domain == domain:
                 contacts.add(em.sender_name or em.sender)
 
-    trail.sort(key=lambda e: e.date or datetime.min, reverse=True)
+    trail.sort(key=lambda e: e.date or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
     trail = trail[:limit]
 
     # Extract price mentions across all emails in this trail
@@ -125,7 +125,7 @@ def _email_to_dict(em) -> dict:
 def get_sales_overview() -> dict:
     """High-level sales dashboard data."""
     all_emails = list_emails(limit=500)
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_ago = today - timedelta(days=7)
     month_ago = today - timedelta(days=30)
