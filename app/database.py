@@ -70,16 +70,26 @@ CREATE TABLE IF NOT EXISTS daily_digests (
 
 def _get_conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    conn = sqlite3.connect(str(DB_PATH), timeout=30)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA busy_timeout=10000")
     return conn
 
 
 def init_db() -> None:
-    with _get_conn() as conn:
-        conn.executescript(_SCHEMA)
+    import time
+    for attempt in range(5):
+        try:
+            with _get_conn() as conn:
+                conn.executescript(_SCHEMA)
+            return
+        except sqlite3.OperationalError:
+            if attempt < 4:
+                time.sleep(2 ** attempt)
+            else:
+                raise
 
 
 # ── Email CRUD ────────────────────────────────────────────────────────────────
