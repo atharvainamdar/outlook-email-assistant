@@ -1,6 +1,6 @@
 {
-  "name": "Ariya Email Assistant",
-  "short_name": "Ariya",
+  "name": "Email Manager",
+  "short_name": "Email Manager",
   "description": "AI-powered email assistant for Ramesh - Sales Head, Sangir Plastics",
   "start_url": "/",
   "display": "standalone",

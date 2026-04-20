@@ -1,4 +1,4 @@
-/* ── Global helpers for Ariya Email Assistant ─────────────────────────── */
+/* ── Global helpers for Email Manager ─────────────────────────── */
 
 async function api(url, opts = {}) {
     const resp = await fetch(url, opts);

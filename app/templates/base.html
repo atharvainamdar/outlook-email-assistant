@@ -6,17 +6,17 @@
     <meta name="theme-color" content="#3b82f6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Ariya">
+    <meta name="apple-mobile-web-app-title" content="Email Manager">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
-    <title>{% block title %}Ariya Email Assistant{% endblock %}</title>
+    <title>{% block title %}Email Manager{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/style.css">
     {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="sidebar">
         <div class="sidebar-header">
-            <h2>Ariya</h2>
+            <h2>Email Manager</h2>
             <span class="subtitle">Email Assistant</span>
         </div>
         <ul class="nav-links">
@@ -54,17 +54,17 @@
     </main>
 
     <!-- Floating AI Chatbot -->
-    <button class="chatbot-fab" id="chatbotFab" title="Ask Ariya AI">&#128172;</button>
+    <button class="chatbot-fab" id="chatbotFab" title="Ask AI Assistant">&#128172;</button>
     <div class="chatbot-window" id="chatbotWindow">
         <div class="chatbot-header">
             <div>
-                <h3>Ariya AI Assistant</h3>
+                <h3>AI Assistant</h3>
                 <div class="subtitle">Ask me anything about your emails</div>
             </div>
             <button class="chatbot-close" id="chatbotClose">&times;</button>
         </div>
         <div class="chatbot-messages" id="chatbotMessages">
-            <div class="chat-msg bot">Namaste! I'm Ariya, your email assistant. Ask me anything about your emails, customers, orders, or prices. I can also help draft replies!</div>
+            <div class="chat-msg bot">Namaste! I'm your email assistant. Ask me anything about your emails, customers, orders, or prices. I can also help draft replies!</div>
         </div>
         <div class="chatbot-suggestions" id="chatbotSuggestions">
             <span class="suggestion-chip" data-q="What are today's urgent emails?">Urgent emails</span>

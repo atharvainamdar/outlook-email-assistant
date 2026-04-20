@@ -1,5 +1,5 @@
-/* Service Worker for Ariya Email Assistant PWA */
-const CACHE_NAME = 'ariya-v1';
+/* Service Worker for Email Manager PWA */
+const CACHE_NAME = 'emailmgr-v1';
 const STATIC_ASSETS = [
     '/',
     '/static/css/style.css',

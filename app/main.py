@@ -1,4 +1,4 @@
-"""FastAPI application — Ariya Email Assistant."""
+"""FastAPI application — Email Manager."""
 
 from __future__ import annotations
 
@@ -29,13 +29,13 @@ templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Ariya Email Assistant...")
+    logger.info("Starting Email Manager...")
     init_db()
     apply_saved_on_startup()
     start_scheduler()
     yield
     stop_scheduler()
-    logger.info("Ariya Email Assistant stopped.")
+    logger.info("Email Manager stopped.")
 
 
 app = FastAPI(

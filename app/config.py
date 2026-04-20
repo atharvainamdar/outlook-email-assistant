@@ -18,7 +18,7 @@ def _default_data_dir() -> Path:
 
 class Settings(BaseSettings):
     # ── General ───────────────────────────────────────────────────────────
-    app_title: str = "Ariya Email Assistant"
+    app_title: str = "Email Manager"
     data_dir: Path = _default_data_dir()
     db_path: str = ""  # resolved in validator
     log_level: str = "INFO"

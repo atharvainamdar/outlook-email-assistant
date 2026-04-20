@@ -32,7 +32,7 @@ _BRIEFING_HTML = """\
 
 <p style="color: #64748b; font-size: 13px; margin-top: 32px; border-top: 1px solid #e2e8f0;
           padding-top: 12px;">
-  Ariya Email Assistant &mdash; open your
+  Email Manager &mdash; open your
   <a href="http://localhost:8000">dashboard</a> for full details.
 </p>
 </body>
