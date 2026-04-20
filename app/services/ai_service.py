@@ -292,8 +292,15 @@ def _parse_json(text: str) -> dict:
     return json.loads(text)
 
 
-def summarise_email(email_msg: EmailMessage) -> EmailSummary:
-    """Summarise a single email using the configured AI provider."""
+def summarise_email(
+    email_msg: EmailMessage,
+    use_bulk_model: bool = False,
+) -> EmailSummary:
+    """Summarise a single email using the configured AI provider.
+
+    When *use_bulk_model* is True (bulk/PST import), uses GPT-5.4 Nano.
+    When False (default, real-time webhook), uses Kimi K2.5 for higher quality.
+    """
     body = email_msg.body_text or email_msg.body_html
     # Truncate very long emails
     if len(body) > 8000:
@@ -309,7 +316,7 @@ Body:
 {body}"""
 
     try:
-        raw = _chat(_SUMMARISE_SYSTEM, user_content, use_bulk_model=True)
+        raw = _chat(_SUMMARISE_SYSTEM, user_content, use_bulk_model=use_bulk_model)
         parsed = _parse_json(raw)
     except Exception:
         logger.exception("AI summarisation failed for email %s", email_msg.id)

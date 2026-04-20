@@ -55,7 +55,7 @@ def _summarise_job() -> None:
     try:
         unsummarised = list_emails(unsummarised_only=True, limit=20)
         for em in unsummarised:
-            result = summarise_email(em)
+            result = summarise_email(em, use_bulk_model=True)
             update_email_summary(em.id, result.summary)
             if result.tasks:
                 for task in result.tasks:

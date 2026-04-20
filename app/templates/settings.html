@@ -15,15 +15,11 @@
 <!-- Email Connection -->
 <div class="section">
     <h2>Email Connection</h2>
-
-    <!-- Microsoft Sign-In (recommended) -->
-    <div class="guide-card" id="msAuthCard" style="margin-bottom:1.5rem;border:2px solid var(--accent);padding:1.5rem;">
-        <div id="msAuthStatus" style="margin-bottom:1rem;"></div>
-        <button class="btn btn-primary btn-lg" id="msSignInBtn" onclick="window.location.href='/auth/login'" style="background:#0078d4;font-size:1.1rem;padding:0.8rem 2rem;">
-            Sign in with Microsoft
-        </button>
-        <button class="btn" id="msSignOutBtn" onclick="msSignOut()" style="display:none;margin-left:1rem;">Disconnect</button>
-        <p style="color:var(--text-secondary);margin-top:0.75rem;margin-bottom:0;font-size:0.85rem;">Secure sign-in through Microsoft. Your password is never stored in this app.</p>
+    <div class="guide-card" id="emailConnectionCard" style="margin-bottom:1.5rem;padding:1.5rem;">
+        <div id="emailConnectionStatus" style="margin-bottom:1rem;"></div>
+        <p style="color:var(--text-secondary);margin:0;font-size:0.9rem;">
+            Emails are automatically received and analysed as they arrive. Your data stays secure and private.
+        </p>
     </div>
 </div>
 
@@ -127,12 +123,13 @@ async function loadSettings() {
 function updateStatus(cfg) {
     const panel = document.getElementById('statusPanel');
     let html = '<div class="status-item status-ok">Server: Running</div>';
-    if (cfg.is_configured) {
-        html += '<div class="status-item status-ok">Email: Connected</div>';
-    } else {
-        html += '<div class="status-item status-warn">Email: Not connected — click "Sign in with Microsoft" below</div>';
-    }
+    html += '<div class="status-item status-ok">AI: Active</div>';
     panel.innerHTML = html;
+    // Update email connection card
+    const connStatus = document.getElementById('emailConnectionStatus');
+    if (connStatus) {
+        connStatus.innerHTML = '<span style="color:var(--success);font-weight:600;">&#10003; Email pipeline active</span>';
+    }
 }
 
 function updateFeatures(cfg) {
@@ -173,44 +170,6 @@ async function saveAll() {
     btn.textContent = 'Save Preferences';
 }
 
-// Microsoft OAuth2 status
-async function checkMsAuth() {
-    try {
-        const res = await fetch('/auth/status');
-        const data = await res.json();
-        const statusEl = document.getElementById('msAuthStatus');
-        const signInBtn = document.getElementById('msSignInBtn');
-        const signOutBtn = document.getElementById('msSignOutBtn');
-
-        if (!data.configured) {
-            statusEl.innerHTML = '<span style="color:var(--text-secondary);">Email sign-in is being set up. Please check back shortly.</span>';
-            signInBtn.style.display = 'none';
-        } else if (data.signed_in) {
-            statusEl.innerHTML = '<span style="color:var(--success);font-weight:600;font-size:1.1rem;">&#10003; Connected: ' + (data.email || data.name || 'Microsoft Account') + '</span>';
-            signInBtn.style.display = 'none';
-            signOutBtn.style.display = 'inline-block';
-        } else {
-            statusEl.innerHTML = '<span style="color:var(--text-secondary);">Sign in to connect your Outlook email</span>';
-            signInBtn.style.display = 'inline-block';
-            signOutBtn.style.display = 'none';
-        }
-    } catch(e) {
-        console.error('Failed to check MS auth status', e);
-    }
-}
-
-async function msSignOut() {
-    if (!confirm('Disconnect your Microsoft account?')) return;
-    try {
-        await fetch('/auth/signout', {method: 'POST'});
-        showToast('Disconnected', 'info');
-        checkMsAuth();
-    } catch(e) {
-        showToast('Failed to disconnect', 'error');
-    }
-}
-
 loadSettings();
-checkMsAuth();
 </script>
 {% endblock %}

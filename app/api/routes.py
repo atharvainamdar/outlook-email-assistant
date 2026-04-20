@@ -123,7 +123,7 @@ def api_summarise_batch(limit: int = 20):
     unsummarised = list_emails(unsummarised_only=True, limit=limit)
     results = []
     for em in unsummarised:
-        result = summarise_email(em)
+        result = summarise_email(em, use_bulk_model=True)
         update_email_summary(em.id, result.summary)
         if result.tasks:
             for task in result.tasks:
@@ -290,12 +290,13 @@ def api_webhook_email(body: dict = Body(...)):
         attachments=body.get("attachments"),
     )
 
-    # Auto-summarize in background
+    # Auto-summarize: use Kimi K2.5 for real-time emails (higher quality)
+    # Bulk import endpoints use use_bulk_model=True for GPT-5.4 Nano
     summary_result = None
     try:
         from app.services.ai_service import summarise_email
         from app.database import update_email_summary, mark_tasks_extracted, save_task
-        result = summarise_email(em)
+        result = summarise_email(em, use_bulk_model=False)
         if result.summary:
             update_email_summary(em.id, result.summary)
             summary_result = result.summary
