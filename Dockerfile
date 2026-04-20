@@ -7,13 +7,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python deps first (cached layer)
+# Install Python deps only (cached layer) — do NOT install the app package
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir $(python3 -c "
+import tomllib, pathlib
+d = tomllib.loads(pathlib.Path('pyproject.toml').read_text())
+print(' '.join(d['project']['dependencies']))
+")
 
-# Copy app source AFTER install so code changes always take effect
-# The pip install above puts deps in site-packages; we override the
-# app/ package with the latest source below.
+# Copy app source (always fresh — never cached by pip)
 COPY app/ app/
 
 # Create data directory
