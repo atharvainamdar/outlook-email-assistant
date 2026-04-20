@@ -10,7 +10,7 @@ import hashlib
 import hmac
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.config import settings
@@ -71,7 +71,7 @@ def ingest_forwarded_email(
         sender_name=sender_name,
         recipients=recipients or [],
         cc=cc or [],
-        date=date or datetime.utcnow(),
+        date=date or datetime.now(timezone.utc),
         body_text=body_text,
         body_html=body_html,
         attachments=att_list,

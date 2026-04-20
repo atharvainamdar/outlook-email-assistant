@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -35,7 +35,7 @@ def _resolve_date_hint(hint: str) -> tuple[datetime | None, datetime | None]:
     """Convert natural date hints to date range."""
     if not hint:
         return None, None
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     hint_lower = hint.lower().strip()
 
     if "today" in hint_lower:

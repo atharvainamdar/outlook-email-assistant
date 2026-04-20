@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -105,7 +105,7 @@ def _row_to_email(row: sqlite3.Row) -> EmailMessage:
         created_at=(
             datetime.fromisoformat(row["created_at"])
             if row["created_at"]
-            else datetime.utcnow()
+            else datetime.now(timezone.utc)
         ),
     )
 
@@ -252,7 +252,7 @@ def _row_to_task(row: sqlite3.Row) -> TaskItem:
         created_at=(
             datetime.fromisoformat(row["created_at"])
             if row["created_at"]
-            else datetime.utcnow()
+            else datetime.now(timezone.utc)
         ),
     )
 

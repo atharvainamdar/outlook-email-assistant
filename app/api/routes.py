@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -137,7 +137,7 @@ def api_summarise_batch(limit: int = 20):
 @router.get("/digest", response_model=DailySummaryResponse)
 def api_daily_digest(date: str = ""):
     """Get or generate today's digest."""
-    target = date or datetime.utcnow().strftime("%Y-%m-%d")
+    target = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     dt_from = datetime.fromisoformat(target)
     dt_to = datetime.fromisoformat(target).replace(hour=23, minute=59, second=59)
     emails = list_emails(date_from=dt_from, date_to=dt_to, limit=500)
