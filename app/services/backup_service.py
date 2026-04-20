@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -66,7 +66,7 @@ def backup_emails(
     """Backup emails to local files. Returns stats."""
     fmt = backup_format or settings.backup_format
     backup_dir = settings.data_dir / "backups"
-    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     batch_dir = backup_dir / f"batch_{timestamp}"
     batch_dir.mkdir(parents=True, exist_ok=True)
 

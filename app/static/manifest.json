@@ -1,0 +1,22 @@
+{
+  "name": "Email Manager",
+  "short_name": "Email Manager",
+  "description": "AI-powered email assistant for Ramesh - Sales Head, Sangir Plastics",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1d23",
+  "theme_color": "#3b82f6",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

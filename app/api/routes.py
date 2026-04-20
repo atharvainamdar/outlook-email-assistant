@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from app.database import (
     count_backed_up,
@@ -43,6 +43,13 @@ from app.services.language_service import (
     translate_summary_to_original,
 )
 from app.services.nlp_search_service import natural_language_search
+from app.services.sales_service import (
+    get_customer_trail,
+    get_customers,
+    get_price_matrix,
+    get_sales_overview,
+)
+from app.services.settings_store import get_current_settings, save_settings
 from app.services.smtp_service import send_email
 from app.services.voice_service import is_configured as voice_configured
 from app.services.voice_service import read_email_summary_aloud
@@ -116,7 +123,7 @@ def api_summarise_batch(limit: int = 20):
     unsummarised = list_emails(unsummarised_only=True, limit=limit)
     results = []
     for em in unsummarised:
-        result = summarise_email(em)
+        result = summarise_email(em, use_bulk_model=True)
         update_email_summary(em.id, result.summary)
         if result.tasks:
             for task in result.tasks:
@@ -130,7 +137,7 @@ def api_summarise_batch(limit: int = 20):
 @router.get("/digest", response_model=DailySummaryResponse)
 def api_daily_digest(date: str = ""):
     """Get or generate today's digest."""
-    target = date or datetime.utcnow().strftime("%Y-%m-%d")
+    target = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     dt_from = datetime.fromisoformat(target)
     dt_to = datetime.fromisoformat(target).replace(hour=23, minute=59, second=59)
     emails = list_emails(date_from=dt_from, date_to=dt_to, limit=500)
@@ -242,6 +249,71 @@ def api_webhook_ingest(
         message_id=message_id,
     )
     return {"status": "ingested", "email_id": em.id}
+
+
+@router.post("/webhook/email")
+def api_webhook_email(body: dict = Body(...)):
+    """Receive forwarded emails via JSON POST (Power Automate, Zapier, etc).
+
+    Accepts JSON with fields: subject, sender, sender_name, recipients,
+    cc, body_text, body_html, date, message_id, attachments.
+    Auto-summarizes using the bulk AI model after ingestion.
+    """
+    from datetime import datetime, timezone
+
+    date_str = body.get("date", "")
+    date_val = None
+    if date_str:
+        try:
+            date_val = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            date_val = None
+
+    recipients = body.get("recipients", [])
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+
+    cc = body.get("cc", [])
+    if isinstance(cc, str):
+        cc = [c.strip() for c in cc.split(",") if c.strip()]
+
+    em = ingest_forwarded_email(
+        subject=body.get("subject", ""),
+        sender=body.get("sender", body.get("from", "")),
+        sender_name=body.get("sender_name", body.get("from_name", "")),
+        recipients=recipients,
+        cc=cc,
+        body_text=body.get("body_text", body.get("body", "")),
+        body_html=body.get("body_html", ""),
+        date=date_val,
+        message_id=body.get("message_id", ""),
+        attachments=body.get("attachments"),
+    )
+
+    # Auto-summarize: use Kimi K2.5 for real-time emails (higher quality)
+    # Bulk import endpoints use use_bulk_model=True for GPT-5.4 Nano
+    summary_result = None
+    try:
+        from app.services.ai_service import summarise_email
+        from app.database import update_email_summary, mark_tasks_extracted, save_task
+        result = summarise_email(em, use_bulk_model=False)
+        if result.summary:
+            update_email_summary(em.id, result.summary)
+            summary_result = result.summary
+        if result.tasks:
+            for t in result.tasks:
+                t.email_id = em.id
+                save_task(t)
+            mark_tasks_extracted(em.id)
+    except Exception:
+        logger.exception("Auto-summarization failed for webhook email %s", em.id)
+
+    return {
+        "status": "ingested",
+        "email_id": em.id,
+        "summary": summary_result,
+        "auto_summarized": summary_result is not None,
+    }
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
@@ -385,10 +457,32 @@ def api_voice_read_summary(
         raise HTTPException(404, "Email not found")
     if not em.summary:
         raise HTTPException(400, "Email not summarised yet")
-    path = read_email_summary_aloud(em.summary, language=language)
+    try:
+        path = read_email_summary_aloud(em.summary, language=language)
+    except Exception as exc:
+        logger.exception("Voice read-summary failed")
+        raise HTTPException(500, f"TTS error: {exc}") from exc
     if not path:
-        raise HTTPException(500, "TTS generation failed")
+        raise HTTPException(500, "TTS generation returned no audio")
     return {"audio_path": path, "language": language}
+
+
+@router.post("/voice/test-tts")
+def api_voice_test_tts(
+    text: str = "Hello, this is a test.",
+    language: str = "hi-IN",
+    speaker: str = "priya",
+):
+    """Quick TTS test endpoint for diagnostics."""
+    from app.services.voice_service import text_to_speech
+    try:
+        path = text_to_speech(text, language=language, speaker=speaker)
+        if not path:
+            return {"status": "failed", "detail": "No audio returned"}
+        return {"status": "ok", "audio_path": path}
+    except Exception as exc:
+        logger.exception("TTS test failed")
+        return {"status": "error", "detail": str(exc)}
 
 
 # ── Language Processing ───────────────────────────────────────────────────────
@@ -441,3 +535,127 @@ def api_translate_text(
         "source_lang": source_lang,
         "target_lang": target_lang,
     }
+
+
+# ── Settings (web-based config) ──────────────────────────────────────────────
+
+
+def _check_admin_key(request) -> bool:
+    """Verify admin API key if one is configured."""
+    import hmac
+    from app.config import settings as cfg
+    if not cfg.admin_api_key:
+        return True  # no key configured = no restriction
+    key = request.headers.get("X-Admin-Key", "")
+    return hmac.compare_digest(key, cfg.admin_api_key)
+
+
+@router.get("/settings/config")
+def api_get_settings(request: Request):
+    """Return current settings (sensitive fields masked)."""
+    if not _check_admin_key(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return get_current_settings()
+
+
+@router.post("/settings/config")
+def api_save_settings(request: Request, body: dict = Body(...)):
+    """Save settings via the web UI — no .env editing needed."""
+    if not _check_admin_key(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return save_settings(body)
+
+
+@router.post("/settings/test-imap")
+def api_test_imap(request: Request):
+    """Test IMAP connection with current settings."""
+    if not _check_admin_key(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    from app.services.imap_service import IMAPService
+    svc = IMAPService()
+    ok, msg = svc.test_connection()
+    return {"ok": ok, "message": msg}
+
+
+# ── Sales Intelligence ────────────────────────────────────────────────────────
+
+@router.get("/sales/overview")
+def api_sales_overview():
+    """Sales dashboard data — email counts, top customers, follow-ups."""
+    return get_sales_overview()
+
+
+@router.get("/sales/customers")
+def api_customers(limit: int = 200):
+    """List all customers grouped by email domain."""
+    return get_customers(limit=limit)
+
+
+@router.get("/sales/customers/{domain:path}")
+def api_customer_trail(domain: str, limit: int = 100):
+    """Get email trail for a specific customer domain."""
+    return get_customer_trail(domain, limit=limit)
+
+
+@router.get("/sales/price-matrix")
+def api_price_matrix(limit: int = 500):
+    """Extract pricing data across all emails, grouped by customer."""
+    return get_price_matrix(limit=limit)
+
+
+# ── AI Chatbot ────────────────────────────────────────────────────────────────
+
+@router.post("/chat")
+def api_chat(body: dict):
+    """AI chatbot — answers questions about emails, customers, orders, prices."""
+    from app.services.ai_service import _chat, _get_api_key
+
+    user_msg = body.get("message", "").strip()
+    if not user_msg:
+        return {"reply": "Please type a question."}
+
+    if not _get_api_key():
+        return {"reply": "AI is not configured yet. Go to Settings and add your AI API key."}
+
+    # Gather context from the database for the AI
+    recent = list_emails(limit=15)
+    tasks = get_tasks(status="open", limit=10)
+    overview = get_sales_overview()
+
+    email_ctx = "\n".join(
+        f"- [{e.date.strftime('%d %b') if e.date else 'unknown'}] "
+        f"From: {e.sender_name or e.sender} | Subject: {e.subject} | "
+        f"Summary: {e.summary or '(not summarised)'}"
+        for e in recent
+    )
+    task_ctx = "\n".join(
+        f"- [{t.priority}] {t.title}: {t.description or ''}"
+        for t in tasks
+    ) if tasks else "No open tasks."
+
+    stats_ctx = (
+        f"Total emails: {overview.get('total_emails', 0)}, "
+        f"Customers: {overview.get('active_customers', 0)}, "
+        f"Prices extracted: {overview.get('price_mentions', 0)}, "
+        f"Follow-ups needed: {overview.get('follow_ups_needed', 0)}"
+    )
+
+    system_prompt = (
+        "You are a friendly AI email assistant for Ramesh Inamdar, "
+        "Sales Head of South India at Sangir Plastics. "
+        "You help him understand his emails, track orders, follow up with customers, "
+        "draft replies, and make sales decisions. "
+        "Be concise, practical, and speak like a helpful colleague. "
+        "Use the email and task data below to answer questions accurately. "
+        "If you don't have enough data, say so honestly.\n\n"
+        f"=== STATS ===\n{stats_ctx}\n\n"
+        f"=== RECENT EMAILS ===\n{email_ctx}\n\n"
+        f"=== OPEN TASKS ===\n{task_ctx}"
+    )
+
+    try:
+        reply = _chat(system_prompt, user_msg)
+        return {"reply": reply}
+    except Exception as exc:
+        logger.exception("Chatbot error")
+        return {"reply": f"Sorry, I encountered an error: {exc}"}

@@ -5,9 +5,6 @@ from __future__ import annotations
 import json
 import logging
 
-import httpx
-
-from app.config import settings
 from app.models.email import EmailMessage
 
 logger = logging.getLogger(__name__)
@@ -44,31 +41,11 @@ Rules:
 - Respond ONLY with valid JSON"""
 
 
-def _build_headers() -> dict[str, str]:
-    return {
-        "Content-Type": "application/json",
-        "api-key": settings.azure_ai_key,
-    }
-
-
-def _build_url() -> str:
-    endpoint = settings.azure_ai_endpoint.rstrip("/")
-    model = settings.azure_ai_model
-    ver = settings.azure_ai_api_version
-    if "/openai" in endpoint:
-        return (
-            f"{endpoint}/deployments/{model}"
-            f"/chat/completions?api-version={ver}"
-        )
-    return (
-        f"{endpoint}/openai/deployments/{model}"
-        f"/chat/completions?api-version={ver}"
-    )
-
-
 def categorise_email(email_msg: EmailMessage) -> dict:
     """Categorise a single email using AI. Returns enriched metadata."""
-    if not settings.azure_ai_key:
+    from app.services.ai_service import _chat, _get_api_key
+
+    if not _get_api_key():
         return _fallback_categorise(email_msg)
 
     body = email_msg.body_text or email_msg.body_html
@@ -85,22 +62,7 @@ def categorise_email(email_msg: EmailMessage) -> dict:
     )
 
     try:
-        payload = {
-            "messages": [
-                {"role": "system", "content": _CATEGORISE_SYSTEM},
-                {"role": "user", "content": user_content},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 300,
-        }
-        resp = httpx.post(
-            _build_url(),
-            json=payload,
-            headers=_build_headers(),
-            timeout=30,
-        )
-        resp.raise_for_status()
-        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        raw = _chat(_CATEGORISE_SYSTEM, user_content, temperature=0.1, use_bulk_model=True)
         # Strip markdown fences
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]

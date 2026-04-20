@@ -7,12 +7,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy project files
-COPY pyproject.toml .
-COPY app/ app/
+# Install Python deps only (cached layer)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Python deps
-RUN pip install --no-cache-dir .
+# Bust cache for app source on every build
+ARG BUILD_TS=0
+RUN echo "build: ${BUILD_TS}"
+
+# Copy app source (always fresh — never cached by pip)
+COPY app/ app/
 
 # Create data directory
 RUN mkdir -p /data

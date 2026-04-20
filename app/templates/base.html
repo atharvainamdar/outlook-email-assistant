@@ -3,19 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Ariya Email Assistant{% endblock %}</title>
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Email Manager">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
+    <title>{% block title %}Email Manager{% endblock %}</title>
     <link rel="stylesheet" href="/static/css/style.css">
     {% block head %}{% endblock %}
 </head>
 <body>
     <nav class="sidebar">
         <div class="sidebar-header">
-            <h2>Ariya</h2>
+            <h2>Email Manager</h2>
             <span class="subtitle">Email Assistant</span>
         </div>
         <ul class="nav-links">
             <li><a href="/" class="nav-link" data-page="dashboard">
                 <span class="icon">&#9776;</span> Dashboard
+            </a></li>
+            <li><a href="/sales" class="nav-link" data-page="sales">
+                <span class="icon">&#128200;</span> Sales
+            </a></li>
+            <li><a href="/customers" class="nav-link" data-page="customers">
+                <span class="icon">&#128101;</span> Customers
+            </a></li>
+            <li><a href="/prices" class="nav-link" data-page="prices">
+                <span class="icon">&#8377;</span> Prices
             </a></li>
             <li><a href="/emails" class="nav-link" data-page="emails">
                 <span class="icon">&#9993;</span> Emails
@@ -37,6 +52,32 @@
     <main class="content">
         {% block content %}{% endblock %}
     </main>
+
+    <!-- Floating AI Chatbot -->
+    <button class="chatbot-fab" id="chatbotFab" title="Ask AI Assistant">&#128172;</button>
+    <div class="chatbot-window" id="chatbotWindow">
+        <div class="chatbot-header">
+            <div>
+                <h3>AI Assistant</h3>
+                <div class="subtitle">Ask me anything about your emails</div>
+            </div>
+            <button class="chatbot-close" id="chatbotClose">&times;</button>
+        </div>
+        <div class="chatbot-messages" id="chatbotMessages">
+            <div class="chat-msg bot">Namaste! I'm your email assistant. Ask me anything about your emails, customers, orders, or prices. I can also help draft replies!</div>
+        </div>
+        <div class="chatbot-suggestions" id="chatbotSuggestions">
+            <span class="suggestion-chip" data-q="What are today's urgent emails?">Urgent emails</span>
+            <span class="suggestion-chip" data-q="Show me pending follow-ups">Follow-ups</span>
+            <span class="suggestion-chip" data-q="Summarise today's emails">Today's summary</span>
+            <span class="suggestion-chip" data-q="Any new orders?">New orders</span>
+        </div>
+        <div class="chatbot-input">
+            <input type="text" id="chatbotInput" placeholder="Type your question..." autocomplete="off">
+            <button class="chatbot-send" id="chatbotSend">&#10148;</button>
+        </div>
+    </div>
+
     <script src="/static/js/app.js"></script>
     {% block scripts %}{% endblock %}
 </body>

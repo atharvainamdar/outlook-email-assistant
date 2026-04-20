@@ -1,4 +1,4 @@
-"""FastAPI application — Ariya Email Assistant."""
+"""FastAPI application — Email Manager."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -15,6 +15,7 @@ from app.api.routes import router as api_router
 from app.config import settings
 from app.database import init_db
 from app.services.scheduler_service import start_scheduler, stop_scheduler
+from app.services.settings_store import apply_saved_on_startup
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -28,12 +29,13 @@ templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Ariya Email Assistant...")
+    logger.info("Starting Email Manager...")
     init_db()
+    apply_saved_on_startup()
     start_scheduler()
     yield
     stop_scheduler()
-    logger.info("Ariya Email Assistant stopped.")
+    logger.info("Email Manager stopped.")
 
 
 app = FastAPI(
@@ -71,6 +73,86 @@ async def settings_page(request: Request):
     return templates.TemplateResponse(request, "settings.html")
 
 
+@app.get("/sales", response_class=HTMLResponse)
+async def sales_page(request: Request):
+    return templates.TemplateResponse(request, "sales.html")
+
+
+@app.get("/customers", response_class=HTMLResponse)
+async def customers_page(request: Request):
+    return templates.TemplateResponse(request, "customers.html")
+
+
+@app.get("/prices", response_class=HTMLResponse)
+async def prices_page(request: Request):
+    return templates.TemplateResponse(request, "prices.html")
+
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": settings.app_title}
+    return {"status": "ok", "app": settings.app_title, "version": "v15-oauth2"}
+
+
+# ── Microsoft OAuth2 ──────────────────────────────────────────────────────────
+
+
+@app.get("/auth/login")
+async def auth_login(request: Request):
+    """Redirect user to Microsoft login page."""
+    from app.services.oauth_service import get_auth_url, is_configured
+    if not is_configured():
+        return templates.TemplateResponse(request, "auth_result.html", {
+            "success": False,
+            "error": "Email sign-in is not set up yet. Please contact support.",
+        })
+    try:
+        url = get_auth_url()
+    except Exception as exc:
+        logger.exception("Failed to generate OAuth2 login URL")
+        return templates.TemplateResponse(request, "auth_result.html", {
+            "success": False,
+            "error": "Could not connect to Microsoft. Please try again.",
+        })
+    if not url:
+        return templates.TemplateResponse(request, "auth_result.html", {
+            "success": False,
+            "error": "Could not generate login link. Please try again.",
+        })
+    return RedirectResponse(url)
+
+
+@app.get("/auth/callback")
+async def auth_callback(request: Request):
+    """Handle Microsoft OAuth2 callback."""
+    from app.services.oauth_service import handle_callback
+    result = handle_callback(dict(request.query_params))
+    if "error" in result:
+        return templates.TemplateResponse(request, "auth_result.html", {
+            "success": False,
+            "error": result["error"],
+        })
+    return templates.TemplateResponse(request, "auth_result.html", {
+        "success": True,
+        "email": result.get("email", ""),
+        "name": result.get("name", ""),
+    })
+
+
+@app.get("/auth/status")
+async def auth_status():
+    """Check if user is signed in with Microsoft."""
+    from app.services.oauth_service import get_signed_in_user, is_configured
+    if not is_configured():
+        return {"configured": False, "signed_in": False}
+    user = get_signed_in_user()
+    if user:
+        return {"configured": True, "signed_in": True, **user}
+    return {"configured": True, "signed_in": False}
+
+
+@app.post("/auth/signout")
+async def auth_signout():
+    """Sign out of Microsoft account."""
+    from app.services.oauth_service import sign_out
+    sign_out()
+    return {"ok": True}

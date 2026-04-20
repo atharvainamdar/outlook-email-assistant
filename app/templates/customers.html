@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Customers — Email Manager{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Customers</h1>
+    <p class="subtitle">All your customers in one place — click any customer to see full email trail</p>
+</div>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="pageLoader">
+    <div class="loader-content">
+        <div class="spinner"></div>
+        <p class="loader-text">Loading customer list...</p>
+    </div>
+</div>
+
+<!-- Search -->
+<div class="filters-bar">
+    <input type="text" id="customerSearch" class="search-input search-full"
+           placeholder="Search customers by name or domain..."
+           oninput="filterCustomers()">
+</div>
+
+<!-- Customer list -->
+<div id="customerList" class="customer-grid">
+    <p class="empty-state loading-text">Analysing your emails to find customers...</p>
+</div>
+
+<!-- Customer detail modal -->
+<div class="modal" id="customerModal">
+    <div class="modal-content modal-wide">
+        <div class="modal-header">
+            <div>
+                <h2 id="modalCompany"></h2>
+                <p class="modal-subtitle" id="modalDomain"></p>
+            </div>
+            <button class="modal-close" onclick="closeCustomerModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="customer-detail-stats" id="modalStats"></div>
+            <h3 style="margin:1rem 0 0.5rem">Contacts</h3>
+            <div id="modalContacts"></div>
+            <h3 style="margin:1rem 0 0.5rem">Price Mentions</h3>
+            <div id="modalPrices"></div>
+            <h3 style="margin:1rem 0 0.5rem">Email Trail</h3>
+            <div class="loading-inline" id="trailLoader">
+                <div class="spinner-sm"></div>
+                <span>Loading email history...</span>
+            </div>
+            <div class="email-list" id="modalTrail"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+let allCustomers = [];
+
+async function loadCustomers() {
+    const loader = document.getElementById('pageLoader');
+    loader.style.display = 'flex';
+    try {
+        allCustomers = await api('/api/sales/customers');
+        renderCustomers(allCustomers);
+
+        // Check if URL has ?domain= param to auto-open
+        const params = new URLSearchParams(window.location.search);
+        const openDomain = params.get('domain');
+        if (openDomain) {
+            openCustomerTrail(openDomain);
+        }
+    } catch(e) {
+        console.error('Load customers error:', e);
+        showToast('Could not load customers', 'error');
+    }
+    loader.style.display = 'none';
+}
+
+function renderCustomers(list) {
+    const el = document.getElementById('customerList');
+    if (list.length === 0) {
+        el.innerHTML = '<p class="empty-state">No customers found. Emails will be grouped by sender once received.</p>';
+        return;
+    }
+    el.innerHTML = list.map(c => {
+        const lastDate = c.last_email_date ? new Date(c.last_email_date).toLocaleDateString('en-IN') : 'N/A';
+        const contactNames = (c.contacts || []).slice(0, 2).join(', ');
+        return `<div class="customer-card clickable" onclick="openCustomerTrail('${escHtml(c.domain)}')">
+            <div class="customer-card-header">
+                <div class="customer-avatar">${escHtml(c.company[0] || '?')}</div>
+                <div>
+                    <div class="customer-name">${escHtml(c.company)}</div>
+                    <div class="customer-domain">${escHtml(c.domain)}</div>
+                </div>
+            </div>
+            <div class="customer-card-body">
+                <div class="customer-stat">
+                    <span class="stat-val">${c.email_count}</span>
+                    <span class="stat-lbl">emails</span>
+                </div>
+                <div class="customer-stat">
+                    <span class="stat-val">${lastDate}</span>
+                    <span class="stat-lbl">last email</span>
+                </div>
+            </div>
+            <div class="customer-card-footer">
+                <span class="customer-contacts">${escHtml(contactNames)}</span>
+                ${c.has_attachments ? '<span class="badge badge-blue">Has files</span>' : ''}
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function filterCustomers() {
+    const q = document.getElementById('customerSearch').value.toLowerCase();
+    if (!q) {
+        renderCustomers(allCustomers);
+        return;
+    }
+    const filtered = allCustomers.filter(c =>
+        c.company.toLowerCase().includes(q) ||
+        c.domain.toLowerCase().includes(q) ||
+        (c.contacts || []).some(name => name.toLowerCase().includes(q))
+    );
+    renderCustomers(filtered);
+}
+
+async function openCustomerTrail(domain) {
+    const modal = document.getElementById('customerModal');
+    modal.classList.add('active');
+    document.getElementById('modalCompany').textContent = 'Loading...';
+    document.getElementById('modalDomain').textContent = domain;
+    document.getElementById('modalTrail').innerHTML = '';
+    document.getElementById('modalContacts').innerHTML = '';
+    document.getElementById('modalPrices').innerHTML = '';
+    document.getElementById('modalStats').innerHTML = '';
+    document.getElementById('trailLoader').style.display = 'flex';
+
+    try {
+        const data = await api(`/api/sales/customers/${encodeURIComponent(domain)}`);
+        document.getElementById('modalCompany').textContent = data.company;
+
+        // Stats
+        document.getElementById('modalStats').innerHTML = `
+            <div class="stat-card mini"><div class="stat-number">${data.email_count}</div><div class="stat-label">Total Emails</div></div>
+            <div class="stat-card mini"><div class="stat-number">${data.contacts.length}</div><div class="stat-label">Contacts</div></div>
+            <div class="stat-card mini"><div class="stat-number">${data.prices.length}</div><div class="stat-label">Price Mentions</div></div>
+        `;
+
+        // Contacts
+        document.getElementById('modalContacts').innerHTML = data.contacts.length
+            ? data.contacts.map(c => `<span class="badge badge-blue" style="margin:0.2rem">${escHtml(c)}</span>`).join('')
+            : '<p class="empty-state">No contacts found</p>';
+
+        // Prices
+        const pricesEl = document.getElementById('modalPrices');
+        if (data.prices.length > 0) {
+            pricesEl.innerHTML = '<div class="price-list">' + data.prices.slice(0, 10).map(p =>
+                `<div class="price-item">
+                    <span class="price-value">${p.currency} ${p.value.toLocaleString('en-IN')}</span>
+                    <span class="price-context">${escHtml(p.context)}</span>
+                    <span class="price-date">${p.email_date ? new Date(p.email_date).toLocaleDateString('en-IN') : ''}</span>
+                </div>`
+            ).join('') + '</div>';
+        } else {
+            pricesEl.innerHTML = '<p class="empty-state">No price mentions found in emails</p>';
+        }
+
+        // Email trail
+        document.getElementById('trailLoader').style.display = 'none';
+        const trailEl = document.getElementById('modalTrail');
+        if (data.emails.length > 0) {
+            trailEl.innerHTML = data.emails.map(e => {
+                const date = e.date ? new Date(e.date).toLocaleString('en-IN') : '';
+                return `<div class="email-card trail-card">
+                    <div class="email-card-header">
+                        <strong>${escHtml(e.sender_name || e.sender)}</strong>
+                        <span class="email-date">${date}</span>
+                    </div>
+                    <div class="email-card-subject">${escHtml(e.subject)}</div>
+                    ${e.summary ? `<div class="email-card-preview">${escHtml(e.summary)}</div>` : ''}
+                    <div class="email-card-footer">
+                        ${e.has_attachments ? `<span class="badge badge-blue">${e.attachment_count} file(s)</span>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        } else {
+            trailEl.innerHTML = '<p class="empty-state">No emails in trail</p>';
+        }
+    } catch(e) {
+        console.error('Customer trail error:', e);
+        document.getElementById('trailLoader').style.display = 'none';
+        showToast('Could not load customer trail', 'error');
+    }
+}
+
+function closeCustomerModal() {
+    document.getElementById('customerModal').classList.remove('active');
+}
+
+// Close on escape
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeCustomerModal();
+});
+
+loadCustomers();
+</script>
+{% endblock %}

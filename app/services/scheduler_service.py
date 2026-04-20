@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -30,7 +30,7 @@ def _fetch_job() -> None:
         return
     try:
         svc = IMAPService()
-        since = datetime.utcnow() - timedelta(days=1)
+        since = datetime.now(timezone.utc) - timedelta(days=1)
         new_emails = svc.fetch_new_emails(limit=100, since_date=since)
         logger.info("Scheduler: fetched %d new emails", len(new_emails))
 
@@ -49,12 +49,13 @@ def _fetch_job() -> None:
 
 def _summarise_job() -> None:
     """Summarise any unsummarised emails."""
-    if not settings.azure_ai_key:
+    from app.services.ai_service import _get_api_key
+    if not _get_api_key():
         return
     try:
         unsummarised = list_emails(unsummarised_only=True, limit=20)
         for em in unsummarised:
-            result = summarise_email(em)
+            result = summarise_email(em, use_bulk_model=True)
             update_email_summary(em.id, result.summary)
             if result.tasks:
                 for task in result.tasks:
@@ -122,7 +123,7 @@ def start_scheduler() -> BackgroundScheduler:
         seconds=settings.imap_poll_interval_seconds,
         id="fetch_emails",
         replace_existing=True,
-        next_run_time=datetime.utcnow() + timedelta(seconds=10),
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10),
     )
 
     # Summarise unsummarised emails every 3 minutes
@@ -132,7 +133,7 @@ def start_scheduler() -> BackgroundScheduler:
         seconds=180,
         id="summarise_emails",
         replace_existing=True,
-        next_run_time=datetime.utcnow() + timedelta(seconds=30),
+        next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
     )
 
     # Backup every hour

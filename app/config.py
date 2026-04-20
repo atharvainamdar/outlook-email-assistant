@@ -8,10 +8,18 @@ from typing import Literal
 from pydantic_settings import BaseSettings
 
 
+def _default_data_dir() -> Path:
+    """Use /data on Fly.io (persistent volume), ~/email-assistant-data locally."""
+    fly_vol = Path("/data")
+    if fly_vol.exists() and fly_vol.is_dir():
+        return fly_vol
+    return Path.home() / "email-assistant-data"
+
+
 class Settings(BaseSettings):
     # ── General ───────────────────────────────────────────────────────────
-    app_title: str = "Ariya Email Assistant"
-    data_dir: Path = Path.home() / "email-assistant-data"
+    app_title: str = "Email Manager"
+    data_dir: Path = _default_data_dir()
     db_path: str = ""  # resolved in validator
     log_level: str = "INFO"
 
@@ -30,11 +38,27 @@ class Settings(BaseSettings):
     smtp_user: str = ""  # defaults to imap_user
     smtp_password: str = ""  # defaults to imap_password
 
-    # ── Azure AI (summarisation / drafting) ───────────────────────────────
+    # ── AI Provider (summarisation / drafting) ────────────────────────────
+    # provider: "azure" (Azure OpenAI), "azure_serverless" (AI Foundry),
+    #           "moonshot" (Kimi direct), "openai_compat" (any compatible)
+    ai_provider: str = "azure"
     azure_ai_endpoint: str = ""
     azure_ai_key: str = ""
-    azure_ai_model: str = "gpt-4o"
-    azure_ai_api_version: str = "2024-12-01-preview"
+    azure_ai_model: str = "Kimi-K2.5"  # chatbot / reasoning model
+    azure_ai_bulk_model: str = "gpt-5.4-nano"  # bulk processing (summarisation, extraction)
+    azure_ai_bulk_endpoint: str = ""  # separate endpoint for bulk model (if different from main)
+    azure_ai_api_version: str = "2024-05-01-preview"
+    azure_ai_region: str = ""  # explicit region override for azure_serverless
+    # Moonshot / OpenAI-compatible direct API
+    moonshot_api_key: str = ""
+    moonshot_base_url: str = "https://api.moonshot.ai/v1"
+    moonshot_model: str = "kimi-k2.5"
+
+    # ── Microsoft OAuth2 ─────────────────────────────────────────────────
+    ms_client_id: str = ""
+    ms_client_secret: str = ""
+    ms_tenant_id: str = "common"  # "common" allows any Microsoft account
+    ms_redirect_uri: str = ""  # e.g. https://your-app.com/auth/callback
 
     # ── Backup ────────────────────────────────────────────────────────────
     backup_format: Literal["json", "eml", "both"] = "both"
@@ -56,6 +80,9 @@ class Settings(BaseSettings):
     # ── Daily Briefing ────────────────────────────────────────────────────
     briefing_hour: int = 8  # 8 AM
     briefing_recipient: str = ""  # defaults to imap_user
+
+    # ── Admin ─────────────────────────────────────────────────────────────
+    admin_api_key: str = ""  # protect /api/settings/* endpoints
 
     # ── Dashboard ─────────────────────────────────────────────────────────
     host: str = "0.0.0.0"

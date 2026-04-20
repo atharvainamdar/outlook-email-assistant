@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 from app.database import get_tasks, list_emails
@@ -32,7 +32,7 @@ _BRIEFING_HTML = """\
 
 <p style="color: #64748b; font-size: 13px; margin-top: 32px; border-top: 1px solid #e2e8f0;
           padding-top: 12px;">
-  Ariya Email Assistant &mdash; open your
+  Email Manager &mdash; open your
   <a href="http://localhost:8000">dashboard</a> for full details.
 </p>
 </body>
@@ -101,7 +101,7 @@ def generate_briefing_html(
     target_date: datetime | None = None,
 ) -> tuple[str, int]:
     """Generate daily briefing HTML. Returns (html, email_count)."""
-    now = target_date or datetime.utcnow()
+    now = target_date or datetime.now(timezone.utc)
     since = now - timedelta(hours=24)
 
     emails = list_emails(date_from=since, date_to=now, limit=500)
@@ -119,8 +119,8 @@ def generate_briefing_html(
                 priority=TaskPriority.MEDIUM,
                 action_required=False,
             ))
-        elif settings.azure_ai_key:
-            result = summarise_email(em)
+        elif settings.azure_ai_key or settings.moonshot_api_key:
+            result = summarise_email(em, use_bulk_model=True)
             from app.database import (
                 mark_tasks_extracted,
                 save_task,
@@ -204,7 +204,7 @@ def send_daily_briefing(recipient: str = "") -> bool:
     html, count = generate_briefing_html()
     subject = (
         f"Your Daily Briefing — "
-        f"{datetime.utcnow().strftime('%d %b %Y')} "
+        f"{datetime.now(timezone.utc).strftime('%d %b %Y')} "
         f"({count} emails)"
     )
     return send_email(to=[to], subject=subject, body=html, html=True)

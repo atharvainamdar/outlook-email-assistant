@@ -1,4 +1,11 @@
-"""Azure AI integration — email summarisation, task extraction, and reply drafting."""
+"""AI integration — email summarisation, task extraction, and reply drafting.
+
+Supports multiple providers:
+- azure: Azure OpenAI (api-key header, deployment-based URL)
+- azure_serverless: Azure AI Foundry serverless (Bearer token, models endpoint)
+- moonshot: Moonshot/Kimi direct API (OpenAI-compatible)
+- openai_compat: Any OpenAI-compatible endpoint
+"""
 
 from __future__ import annotations
 
@@ -48,45 +55,230 @@ Group by priority and category. Highlight urgent items first.
 Return plain text formatted for easy reading."""
 
 
+def _get_provider() -> str:
+    """Determine which AI provider to use."""
+    provider = settings.ai_provider.lower().strip()
+    if provider in ("azure", "azure_openai"):
+        return "azure"
+    if provider in ("azure_serverless", "azure_foundry", "foundry"):
+        return "azure_serverless"
+    if provider in ("moonshot", "kimi"):
+        return "moonshot"
+    return "openai_compat"
+
+
+def _get_api_key() -> str:
+    """Get the API key for the active provider."""
+    provider = _get_provider()
+    if provider == "moonshot":
+        return settings.moonshot_api_key or settings.azure_ai_key
+    return settings.azure_ai_key or settings.moonshot_api_key
+
+
 def _build_headers() -> dict[str, str]:
+    """Build request headers based on the active provider."""
+    provider = _get_provider()
+    key = _get_api_key()
+
+    if provider == "azure":
+        return {
+            "Content-Type": "application/json",
+            "api-key": key,
+        }
+    # azure_serverless, moonshot, openai_compat all use Bearer token
     return {
         "Content-Type": "application/json",
-        "api-key": settings.azure_ai_key,
+        "Authorization": f"Bearer {key}",
     }
 
 
 def _build_url() -> str:
-    endpoint = settings.azure_ai_endpoint.rstrip("/")
-    # Handle both Azure OpenAI and Azure AI Foundry endpoints
-    model = settings.azure_ai_model
-    ver = settings.azure_ai_api_version
-    if "/openai" in endpoint:
-        return (
-            f"{endpoint}/deployments/{model}"
-            f"/chat/completions?api-version={ver}"
-        )
-    else:
+    """Build the chat completions URL for the active provider."""
+    provider = _get_provider()
+
+    if provider == "azure":
+        endpoint = settings.azure_ai_endpoint.rstrip("/")
+        # If the endpoint already contains /chat/completions, use as-is
+        if "/chat/completions" in endpoint:
+            return endpoint
+        model = settings.azure_ai_model
+        ver = settings.azure_ai_api_version
+        if "/openai" in endpoint:
+            return (
+                f"{endpoint}/deployments/{model}"
+                f"/chat/completions?api-version={ver}"
+            )
         return (
             f"{endpoint}/openai/deployments/{model}"
             f"/chat/completions?api-version={ver}"
         )
 
+    if provider == "azure_serverless":
+        endpoint = settings.azure_ai_endpoint.rstrip("/")
+        # If the endpoint already looks like a full chat URL, use it directly
+        if "/chat/completions" in endpoint:
+            return endpoint
+        # If it's a models endpoint, append /chat/completions
+        if "models.ai.azure.com" in endpoint:
+            return f"{endpoint}/chat/completions"
+        # Azure AI Foundry serverless: construct models endpoint
+        region = _extract_region(endpoint)
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(endpoint).hostname or ""
+            resource = host.split(".")[0]
+        except Exception:
+            resource = "default"
+        return (
+            f"https://{resource}.{region}.models.ai.azure.com"
+            f"/chat/completions"
+        )
 
-def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
-    """Send a chat completion request to Azure AI."""
-    url = _build_url()
-    payload = {
+    if provider == "moonshot":
+        base_url = settings.moonshot_base_url.rstrip("/")
+        return f"{base_url}/chat/completions"
+
+    # openai_compat fallback
+    base_url = (
+        settings.moonshot_base_url.rstrip("/")
+        if settings.moonshot_api_key
+        else settings.azure_ai_endpoint.rstrip("/")
+    )
+    return f"{base_url}/chat/completions"
+
+
+def _extract_region(endpoint: str) -> str:
+    """Extract Azure region from endpoint URL.
+
+    Prefers the explicit ``settings.azure_ai_region`` config value when set,
+    falling back to parsing the region from the endpoint hostname.
+    """
+    if settings.azure_ai_region:
+        return settings.azure_ai_region
+
+    # Try to extract region from URL like https://<resource>.<region>.api.cognitive.microsoft.com
+    # or https://<region>.api.cognitive.microsoft.com
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(endpoint).hostname or ""
+        parts = host.split(".")
+        # Common patterns: <region>.api.cognitive.microsoft.com
+        #                  <resource>.<region>.models.ai.azure.com
+        for p in parts:
+            if p and p not in ("api", "cognitive", "microsoft", "com", "models", "ai", "azure",
+                               "openai", "services", "inference"):
+                # Check if it looks like a region (contains letters, no special chars)
+                if p.isalpha() or (p.replace("-", "").isalnum() and len(p) > 3):
+                    return p
+    except Exception:
+        pass
+
+    return "eastus"
+
+
+def _is_openai_model(model_name: str) -> bool:
+    """Check if a model uses the OpenAI deployment endpoint (gpt-* series)."""
+    return model_name.lower().startswith("gpt-")
+
+
+def _build_payload(
+    system: str,
+    user_content: str,
+    temperature: float = 0.3,
+    model_override: str | None = None,
+) -> dict:
+    """Build the request payload, adding model field when needed."""
+    model_name = model_override or settings.azure_ai_model or ""
+
+    # GPT-5.x+ models require max_completion_tokens, not max_tokens
+    token_key = "max_completion_tokens" if _is_openai_model(model_name) else "max_tokens"
+
+    payload: dict = {
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user_content},
         ],
         "temperature": temperature,
-        "max_tokens": 2000,
+        token_key: 2000,
     }
-    resp = httpx.post(url, json=payload, headers=_build_headers(), timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"].strip()
+
+    # Always include model name — required by Azure AI Foundry models endpoint
+    provider = _get_provider()
+    if model_override:
+        payload["model"] = model_override
+    elif provider == "moonshot":
+        payload["model"] = settings.moonshot_model
+    elif settings.azure_ai_model:
+        payload["model"] = settings.azure_ai_model
+
+    return payload
+
+
+def _chat(
+    system: str,
+    user_content: str,
+    temperature: float = 0.3,
+    use_bulk_model: bool = False,
+) -> str:
+    """Send a chat completion request to the configured AI provider.
+
+    When *use_bulk_model* is True, routes to the cheaper/faster bulk model
+    (GPT-5.4 Nano) instead of the reasoning model (Kimi K2.5).
+
+    Retries up to 3 times on 429 (rate limit / concurrency) errors
+    with exponential backoff.
+    """
+    import time
+
+    if not _get_api_key():
+        raise RuntimeError("No AI API key configured")
+
+    model_override = None
+    url_override = None
+    use_apikey_header = False
+    if use_bulk_model and settings.azure_ai_bulk_model:
+        model_override = settings.azure_ai_bulk_model
+        if settings.azure_ai_bulk_endpoint:
+            url_override = settings.azure_ai_bulk_endpoint
+            # Azure OpenAI deployment endpoints use api-key header
+            if "/openai/deployments/" in url_override:
+                use_apikey_header = True
+
+    url = url_override or _build_url()
+    payload = _build_payload(system, user_content, temperature, model_override)
+    if use_apikey_header:
+        headers = {
+            "Content-Type": "application/json",
+            "api-key": _get_api_key(),
+        }
+    else:
+        headers = _build_headers()
+
+    logger.info("AI request to %s (provider=%s)", url, _get_provider())
+    last_exc: Exception | None = None
+    for attempt in range(4):
+        if attempt > 0:
+            wait = 2 ** attempt
+            logger.warning("AI 429 retry %d, waiting %ds", attempt, wait)
+            time.sleep(wait)
+        try:
+            resp = httpx.post(url, json=payload, headers=headers, timeout=90)
+            if resp.status_code == 429:
+                last_exc = httpx.HTTPStatusError(
+                    "429", request=resp.request, response=resp,
+                )
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            msg = data["choices"][0]["message"]
+            text = msg.get("content") or msg.get("reasoning_content") or ""
+            return text.strip()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 429:
+                last_exc = exc
+                continue
+            raise
+    raise last_exc or RuntimeError("AI request failed after retries")
 
 
 def _parse_json(text: str) -> dict:
@@ -100,8 +292,15 @@ def _parse_json(text: str) -> dict:
     return json.loads(text)
 
 
-def summarise_email(email_msg: EmailMessage) -> EmailSummary:
-    """Summarise a single email using Azure AI."""
+def summarise_email(
+    email_msg: EmailMessage,
+    use_bulk_model: bool = False,
+) -> EmailSummary:
+    """Summarise a single email using the configured AI provider.
+
+    When *use_bulk_model* is True (bulk/PST import), uses GPT-5.4 Nano.
+    When False (default, real-time webhook), uses Kimi K2.5 for higher quality.
+    """
     body = email_msg.body_text or email_msg.body_html
     # Truncate very long emails
     if len(body) > 8000:
@@ -117,7 +316,7 @@ Body:
 {body}"""
 
     try:
-        raw = _chat(_SUMMARISE_SYSTEM, user_content)
+        raw = _chat(_SUMMARISE_SYSTEM, user_content, use_bulk_model=use_bulk_model)
         parsed = _parse_json(raw)
     except Exception:
         logger.exception("AI summarisation failed for email %s", email_msg.id)
@@ -212,7 +411,7 @@ def generate_daily_digest(summaries: list[EmailSummary]) -> str:
     )
 
     try:
-        return _chat(_DAILY_DIGEST_SYSTEM, user_content, temperature=0.4)
+        return _chat(_DAILY_DIGEST_SYSTEM, user_content, temperature=0.4, use_bulk_model=True)
     except Exception:
         logger.exception("Daily digest generation failed")
         return "Daily digest generation failed. Individual summaries are still available."

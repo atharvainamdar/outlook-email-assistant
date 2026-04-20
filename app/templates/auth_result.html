@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Sign In — Email Manager{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Microsoft Sign-In</h1>
+</div>
+
+<div class="section">
+    {% if success %}
+    <div class="guide-card" style="border:2px solid var(--success);text-align:center;padding:2rem;">
+        <div style="font-size:3rem;margin-bottom:1rem;">&#x1F389;</div>
+        <h2 style="color:var(--success);margin-bottom:0.5rem;">Successfully Connected!</h2>
+        <p style="font-size:1.1rem;margin-bottom:0.5rem;">
+            {% if name %}Welcome, <strong>{{ name }}</strong>!{% endif %}
+        </p>
+        {% if email %}
+        <p style="color:var(--text-secondary);">Email: <strong>{{ email }}</strong></p>
+        {% endif %}
+        <p style="margin-top:1.5rem;">Your Outlook emails will now sync automatically.</p>
+        <a href="/settings" class="btn btn-primary btn-lg" style="margin-top:1rem;display:inline-block;">Go to Settings</a>
+        <a href="/" class="btn btn-lg" style="margin-top:1rem;display:inline-block;margin-left:1rem;">Go to Dashboard</a>
+    </div>
+    {% else %}
+    <div class="guide-card" style="border:2px solid var(--danger);text-align:center;padding:2rem;">
+        <div style="font-size:3rem;margin-bottom:1rem;">&#x26A0;</div>
+        <h2 style="color:var(--danger);margin-bottom:0.5rem;">Sign-In Failed</h2>
+        <p style="color:var(--text-secondary);margin-bottom:1rem;">{{ error }}</p>
+        <a href="/auth/login" class="btn btn-primary btn-lg" style="margin-top:1rem;display:inline-block;">Try Again</a>
+        <a href="/settings" class="btn btn-lg" style="margin-top:1rem;display:inline-block;margin-left:1rem;">Back to Settings</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
