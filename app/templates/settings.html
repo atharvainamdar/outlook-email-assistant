@@ -15,32 +15,48 @@
 <!-- Step 1: Email Connection -->
 <div class="section">
     <h2>Step 1: Connect Your Email</h2>
-    <div class="settings-form">
-        <div class="form-group">
-            <label for="imap_user">Email Address</label>
-            <input type="email" id="imap_user" placeholder="your-email@company.com">
-            <span class="form-hint">Your Outlook or company email address</span>
-        </div>
-        <div class="form-group">
-            <label for="imap_password">Password</label>
-            <input type="password" id="imap_password" placeholder="Your password or App Password">
-            <span class="form-hint">If your account uses 2FA, use an App Password instead</span>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label for="imap_host">Email Server</label>
-                <input type="text" id="imap_host" placeholder="outlook.office365.com" value="outlook.office365.com">
-            </div>
-            <div class="form-group">
-                <label for="imap_port">Port</label>
-                <input type="number" id="imap_port" placeholder="993" value="993">
-            </div>
-        </div>
-        <div class="form-actions">
-            <button class="btn btn-primary" onclick="saveAndTest()">Save &amp; Test Connection</button>
-            <span id="testResult" class="form-result"></span>
-        </div>
+
+    <!-- Microsoft Sign-In (recommended) -->
+    <div class="guide-card" id="msAuthCard" style="margin-bottom:1.5rem;border:2px solid var(--accent);padding:1.5rem;">
+        <h3 style="margin-top:0;">Recommended: Sign in with Microsoft</h3>
+        <p style="color:var(--text-secondary);margin-bottom:1rem;">One click — no password needed. Works with Outlook, Office 365, and Hotmail.</p>
+        <div id="msAuthStatus" style="margin-bottom:1rem;"></div>
+        <button class="btn btn-primary btn-lg" id="msSignInBtn" onclick="window.location.href='/auth/login'" style="background:#0078d4;font-size:1.1rem;padding:0.8rem 2rem;">
+            <span style="margin-right:0.5rem;">&#xf3ca;</span> Sign in with Microsoft
+        </button>
+        <button class="btn" id="msSignOutBtn" onclick="msSignOut()" style="display:none;margin-left:1rem;">Sign Out</button>
     </div>
+
+    <!-- Manual IMAP (fallback) -->
+    <details id="manualImapSection">
+        <summary style="cursor:pointer;color:var(--text-secondary);margin-bottom:1rem;">Or connect manually with email &amp; password</summary>
+        <div class="settings-form" style="margin-top:1rem;">
+            <div class="form-group">
+                <label for="imap_user">Email Address</label>
+                <input type="email" id="imap_user" placeholder="your-email@company.com">
+                <span class="form-hint">Your Outlook or company email address</span>
+            </div>
+            <div class="form-group">
+                <label for="imap_password">Password</label>
+                <input type="password" id="imap_password" placeholder="Your password or App Password">
+                <span class="form-hint">If your account uses 2FA, use an App Password instead</span>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="imap_host">Email Server</label>
+                    <input type="text" id="imap_host" placeholder="outlook.office365.com" value="outlook.office365.com">
+                </div>
+                <div class="form-group">
+                    <label for="imap_port">Port</label>
+                    <input type="number" id="imap_port" placeholder="993" value="993">
+                </div>
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-primary" onclick="saveAndTest()">Save &amp; Test Connection</button>
+                <span id="testResult" class="form-result"></span>
+            </div>
+        </div>
+    </details>
 </div>
 
 <!-- Step 2: AI (Optional) -->
@@ -269,10 +285,48 @@ async function saveAndTest() {
     loadSettings();
 }
 
+// Microsoft OAuth2 status
+async function checkMsAuth() {
+    try {
+        const res = await fetch('/auth/status');
+        const data = await res.json();
+        const statusEl = document.getElementById('msAuthStatus');
+        const signInBtn = document.getElementById('msSignInBtn');
+        const signOutBtn = document.getElementById('msSignOutBtn');
+
+        if (!data.configured) {
+            statusEl.innerHTML = '<span style="color:var(--text-secondary);">OAuth2 not configured yet — admin setup needed.</span>';
+            signInBtn.style.display = 'none';
+        } else if (data.signed_in) {
+            statusEl.innerHTML = '<span style="color:var(--success);font-weight:600;">Connected as: ' + (data.email || data.name || 'Microsoft Account') + '</span>';
+            signInBtn.style.display = 'none';
+            signOutBtn.style.display = 'inline-block';
+        } else {
+            statusEl.innerHTML = '<span style="color:var(--text-secondary);">Not signed in yet</span>';
+            signInBtn.style.display = 'inline-block';
+            signOutBtn.style.display = 'none';
+        }
+    } catch(e) {
+        console.error('Failed to check MS auth status', e);
+    }
+}
+
+async function msSignOut() {
+    if (!confirm('Sign out of Microsoft account?')) return;
+    try {
+        await fetch('/auth/signout', {method: 'POST'});
+        showToast('Signed out', 'info');
+        checkMsAuth();
+    } catch(e) {
+        showToast('Sign out failed', 'error');
+    }
+}
+
 // Set webhook URL based on current host
 document.getElementById('webhookUrl').textContent =
     window.location.origin + '/api/webhook/ingest';
 
 loadSettings();
+checkMsAuth();
 </script>
 {% endblock %}

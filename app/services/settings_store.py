@@ -38,6 +38,10 @@ CONFIGURABLE_FIELDS = {
     "whatsapp_secretary_phone",
     "briefing_hour",
     "briefing_recipient",
+    "ms_client_id",
+    "ms_client_secret",
+    "ms_tenant_id",
+    "ms_redirect_uri",
 }
 
 # Fields that should be masked when returned to the UI
@@ -48,6 +52,7 @@ SENSITIVE_FIELDS = {
     "moonshot_api_key",
     "sarvam_api_key",
     "whatsapp_token",
+    "ms_client_secret",
 }
 
 

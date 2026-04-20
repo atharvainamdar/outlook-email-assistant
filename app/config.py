@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     moonshot_base_url: str = "https://api.moonshot.ai/v1"
     moonshot_model: str = "kimi-k2.5"
 
+    # ── Microsoft OAuth2 ─────────────────────────────────────────────────
+    ms_client_id: str = ""
+    ms_client_secret: str = ""
+    ms_tenant_id: str = "common"  # "common" allows any Microsoft account
+    ms_redirect_uri: str = ""  # e.g. https://your-app.com/auth/callback
+
     # ── Backup ────────────────────────────────────────────────────────────
     backup_format: Literal["json", "eml", "both"] = "both"
     max_backup_age_days: int = 0  # 0 = back up everything
