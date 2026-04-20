@@ -477,11 +477,12 @@ def api_translate_text(
 
 def _check_admin_key(request) -> bool:
     """Verify admin API key if one is configured."""
+    import hmac
     from app.config import settings as cfg
     if not cfg.admin_api_key:
         return True  # no key configured = no restriction
     key = request.headers.get("X-Admin-Key", "")
-    return key == cfg.admin_api_key
+    return hmac.compare_digest(key, cfg.admin_api_key)
 
 
 @router.get("/settings/config")
@@ -501,8 +502,10 @@ def api_save_settings(request: Request, body: dict = Body(...)):
 
 
 @router.post("/settings/test-imap")
-def api_test_imap():
+def api_test_imap(request: Request):
     """Test IMAP connection with current settings."""
+    if not _check_admin_key(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
     from app.services.imap_service import IMAPService
     svc = IMAPService()
     ok, msg = svc.test_connection()
