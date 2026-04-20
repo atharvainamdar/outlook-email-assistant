@@ -95,30 +95,6 @@ async def health():
 
 # ── Microsoft OAuth2 ──────────────────────────────────────────────────────────
 
-@app.get("/auth/debug")
-async def auth_debug():
-    """Debug endpoint to diagnose OAuth2 issues (read-only, no side effects)."""
-    from app.services.oauth_service import is_configured, SCOPES
-    info = {
-        "configured": is_configured(),
-        "client_id_set": bool(settings.ms_client_id),
-        "client_secret_set": bool(settings.ms_client_secret),
-        "tenant_id": settings.ms_tenant_id,
-        "redirect_uri": settings.ms_redirect_uri,
-        "scopes": SCOPES,
-    }
-    try:
-        from app.services.oauth_service import _get_msal_app
-        app_obj, _ = _get_msal_app()
-        info["authority"] = str(getattr(app_obj, "authority", ""))[:80]
-        info["success"] = True
-    except Exception as exc:
-        import traceback
-        info["success"] = False
-        info["error"] = str(exc)
-        info["traceback"] = traceback.format_exc()
-    return info
-
 
 @app.get("/auth/login")
 async def auth_login(request: Request):

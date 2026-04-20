@@ -251,6 +251,70 @@ def api_webhook_ingest(
     return {"status": "ingested", "email_id": em.id}
 
 
+@router.post("/webhook/email")
+def api_webhook_email(body: dict = Body(...)):
+    """Receive forwarded emails via JSON POST (Power Automate, Zapier, etc).
+
+    Accepts JSON with fields: subject, sender, sender_name, recipients,
+    cc, body_text, body_html, date, message_id, attachments.
+    Auto-summarizes using the bulk AI model after ingestion.
+    """
+    from datetime import datetime, timezone
+
+    date_str = body.get("date", "")
+    date_val = None
+    if date_str:
+        try:
+            date_val = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            date_val = None
+
+    recipients = body.get("recipients", [])
+    if isinstance(recipients, str):
+        recipients = [r.strip() for r in recipients.split(",") if r.strip()]
+
+    cc = body.get("cc", [])
+    if isinstance(cc, str):
+        cc = [c.strip() for c in cc.split(",") if c.strip()]
+
+    em = ingest_forwarded_email(
+        subject=body.get("subject", ""),
+        sender=body.get("sender", body.get("from", "")),
+        sender_name=body.get("sender_name", body.get("from_name", "")),
+        recipients=recipients,
+        cc=cc,
+        body_text=body.get("body_text", body.get("body", "")),
+        body_html=body.get("body_html", ""),
+        date=date_val,
+        message_id=body.get("message_id", ""),
+        attachments=body.get("attachments"),
+    )
+
+    # Auto-summarize in background
+    summary_result = None
+    try:
+        from app.services.ai_service import summarise_email
+        from app.database import update_email_summary, mark_tasks_extracted, save_task
+        result = summarise_email(em)
+        if result.summary:
+            update_email_summary(em.id, result.summary)
+            summary_result = result.summary
+        if result.tasks:
+            for t in result.tasks:
+                t.email_id = em.id
+                save_task(t)
+            mark_tasks_extracted(em.id)
+    except Exception:
+        logger.exception("Auto-summarization failed for webhook email %s", em.id)
+
+    return {
+        "status": "ingested",
+        "email_id": em.id,
+        "summary": summary_result,
+        "auto_summarized": summary_result is not None,
+    }
+
+
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 @router.get("/stats", response_model=StatsResponse)
