@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     azure_ai_endpoint: str = ""
     azure_ai_key: str = ""
     azure_ai_model: str = "Kimi-K2.5"  # chatbot / reasoning model
-    azure_ai_bulk_model: str = "DeepSeek-V3.2"  # bulk processing (summarisation, extraction)
+    azure_ai_bulk_model: str = "gpt-5.4-nano"  # bulk processing (summarisation, extraction)
+    azure_ai_bulk_endpoint: str = ""  # separate endpoint for bulk model (if different from main)
     azure_ai_api_version: str = "2024-05-01-preview"
     azure_ai_region: str = ""  # explicit region override for azure_serverless
     # Moonshot / OpenAI-compatible direct API

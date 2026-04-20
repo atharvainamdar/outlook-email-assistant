@@ -213,7 +213,7 @@ def _chat(
     """Send a chat completion request to the configured AI provider.
 
     When *use_bulk_model* is True, routes to the cheaper/faster bulk model
-    (DeepSeek V3.2) instead of the reasoning model (Kimi K2.5).
+    (GPT-5.4 Nano) instead of the reasoning model (Kimi K2.5).
 
     Retries up to 3 times on 429 (rate limit / concurrency) errors
     with exponential backoff.
@@ -224,10 +224,13 @@ def _chat(
         raise RuntimeError("No AI API key configured")
 
     model_override = None
+    url_override = None
     if use_bulk_model and settings.azure_ai_bulk_model:
         model_override = settings.azure_ai_bulk_model
+        if settings.azure_ai_bulk_endpoint:
+            url_override = settings.azure_ai_bulk_endpoint
 
-    url = _build_url()
+    url = url_override or _build_url()
     payload = _build_payload(system, user_content, temperature, model_override)
     headers = _build_headers()
 
