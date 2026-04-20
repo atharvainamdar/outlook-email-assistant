@@ -96,12 +96,11 @@ async def health():
 # ── Microsoft OAuth2 ──────────────────────────────────────────────────────────
 
 @app.get("/auth/login")
-async def auth_login():
+async def auth_login(request: Request):
     """Redirect user to Microsoft login page."""
     from app.services.oauth_service import get_auth_url, is_configured
     if not is_configured():
-        return templates.TemplateResponse("auth_result.html", {
-            "request": {},
+        return templates.TemplateResponse(request, "auth_result.html", {
             "success": False,
             "error": "Email sign-in is not set up yet. Please contact support.",
         })
@@ -109,14 +108,12 @@ async def auth_login():
         url = get_auth_url()
     except Exception as exc:
         logger.exception("Failed to generate OAuth2 login URL")
-        return templates.TemplateResponse("auth_result.html", {
-            "request": {},
+        return templates.TemplateResponse(request, "auth_result.html", {
             "success": False,
-            "error": f"Could not connect to Microsoft. Please try again. ({exc})",
+            "error": f"Could not connect to Microsoft. Please try again.",
         })
     if not url:
-        return templates.TemplateResponse("auth_result.html", {
-            "request": {},
+        return templates.TemplateResponse(request, "auth_result.html", {
             "success": False,
             "error": "Could not generate login link. Please try again.",
         })
