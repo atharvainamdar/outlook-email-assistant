@@ -11,6 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Bust cache for app source on every build
+ARG BUILD_TS=0
+RUN echo "build: ${BUILD_TS}"
+
 # Copy app source (always fresh — never cached by pip)
 COPY app/ app/
 
