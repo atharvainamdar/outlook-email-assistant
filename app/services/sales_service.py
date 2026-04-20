@@ -60,7 +60,8 @@ def get_customers(limit: int = 200) -> list[dict]:
         entry["email_count"] += 1
         if em.attachments:
             entry["has_attachments"] = True
-        if em.date and (entry["last_email_date"] is None or em.date > entry["last_email_date"]):
+        last = entry["last_email_date"]
+        if em.date and (last is None or _ensure_aware(em.date) > _ensure_aware(last)):
             entry["last_email_date"] = em.date
             entry["last_subject"] = em.subject
 
