@@ -89,7 +89,7 @@ def _apply_to_runtime(saved: dict) -> None:
         if key not in CONFIGURABLE_FIELDS or not hasattr(settings, key):
             continue
         current = getattr(settings, key)
-        if not value and current:
+        if value in (None, "") and current:
             continue
         try:
             field_type = type(current)

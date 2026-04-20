@@ -49,7 +49,8 @@ def _fetch_job() -> None:
 
 def _summarise_job() -> None:
     """Summarise any unsummarised emails."""
-    if not settings.azure_ai_key:
+    from app.services.ai_service import _get_api_key
+    if not _get_api_key():
         return
     try:
         unsummarised = list_emails(unsummarised_only=True, limit=20)

@@ -119,7 +119,7 @@ def generate_briefing_html(
                 priority=TaskPriority.MEDIUM,
                 action_required=False,
             ))
-        elif settings.azure_ai_key:
+        elif settings.azure_ai_key or settings.moonshot_api_key:
             result = summarise_email(em)
             from app.database import (
                 mark_tasks_extracted,

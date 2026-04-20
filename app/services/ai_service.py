@@ -143,8 +143,12 @@ def _extract_region(endpoint: str) -> str:
         return "eastus"
     if "centralindia" in parts:
         return "centralindia"
-    if "westus" in parts:
+    if "westus2" in parts:
         return "westus2"
+    if "westus3" in parts:
+        return "westus3"
+    if "westus" in parts:
+        return "westus"
     if "westeurope" in parts:
         return "westeurope"
     return "eastus"  # default
