@@ -84,9 +84,9 @@ def _apply_to_runtime(saved: dict) -> None:
             except (ValueError, TypeError) as exc:
                 logger.warning("Cannot apply setting %s=%r: %s", key, value, exc)
 
-    if not settings.smtp_user and settings.imap_user:
+    if "smtp_user" not in saved and settings.imap_user:
         object.__setattr__(settings, "smtp_user", settings.imap_user)
-    if not settings.smtp_password and settings.imap_password:
+    if "smtp_password" not in saved and settings.imap_password:
         object.__setattr__(settings, "smtp_password", settings.imap_password)
 
 
