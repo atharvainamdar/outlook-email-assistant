@@ -73,7 +73,7 @@ def _parse_query_with_ai(query: str) -> dict:
         return {"keywords": query, "sender": "", "date_hint": ""}
 
     try:
-        raw = _chat(_SEARCH_SYSTEM, query, temperature=0.0)
+        raw = _chat(_SEARCH_SYSTEM, query, temperature=0.0, use_bulk_model=True)
         return _parse_json(raw)
     except Exception:
         logger.exception("NLP search parsing failed")

@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query, Request
 
 from app.database import (
     count_backed_up,
@@ -474,16 +474,30 @@ def api_translate_text(
 
 # ── Settings (web-based config) ──────────────────────────────────────────────
 
+
+def _check_admin_key(request) -> bool:
+    """Verify admin API key if one is configured."""
+    from app.config import settings as cfg
+    if not cfg.admin_api_key:
+        return True  # no key configured = no restriction
+    key = request.headers.get("X-Admin-Key", "")
+    return key == cfg.admin_api_key
+
+
 @router.get("/settings/config")
-def api_get_settings():
+def api_get_settings(request: Request):
     """Return current settings (sensitive fields masked)."""
+    if not _check_admin_key(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
     return get_current_settings()
 
 
 @router.post("/settings/config")
-def api_save_settings(request: dict):
+def api_save_settings(request: Request, body: dict = Body(...)):
     """Save settings via the web UI — no .env editing needed."""
-    return save_settings(request)
+    if not _check_admin_key(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return save_settings(body)
 
 
 @router.post("/settings/test-imap")

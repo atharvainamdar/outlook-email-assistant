@@ -62,7 +62,7 @@ def categorise_email(email_msg: EmailMessage) -> dict:
     )
 
     try:
-        raw = _chat(_CATEGORISE_SYSTEM, user_content, temperature=0.1)
+        raw = _chat(_CATEGORISE_SYSTEM, user_content, temperature=0.1, use_bulk_model=True)
         # Strip markdown fences
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]

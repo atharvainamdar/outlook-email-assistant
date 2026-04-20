@@ -180,6 +180,7 @@ def _build_payload(
     system: str,
     user_content: str,
     temperature: float = 0.3,
+    model_override: str | None = None,
 ) -> dict:
     """Build the request payload, adding model field when needed."""
     payload: dict = {
@@ -193,7 +194,9 @@ def _build_payload(
 
     # Always include model name — required by Azure AI Foundry models endpoint
     provider = _get_provider()
-    if provider == "moonshot":
+    if model_override:
+        payload["model"] = model_override
+    elif provider == "moonshot":
         payload["model"] = settings.moonshot_model
     elif settings.azure_ai_model:
         payload["model"] = settings.azure_ai_model
@@ -201,8 +204,16 @@ def _build_payload(
     return payload
 
 
-def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
+def _chat(
+    system: str,
+    user_content: str,
+    temperature: float = 0.3,
+    use_bulk_model: bool = False,
+) -> str:
     """Send a chat completion request to the configured AI provider.
+
+    When *use_bulk_model* is True, routes to the cheaper/faster bulk model
+    (DeepSeek V3.2) instead of the reasoning model (Kimi K2.5).
 
     Retries up to 3 times on 429 (rate limit / concurrency) errors
     with exponential backoff.
@@ -212,8 +223,12 @@ def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
     if not _get_api_key():
         raise RuntimeError("No AI API key configured")
 
+    model_override = None
+    if use_bulk_model and settings.azure_ai_bulk_model:
+        model_override = settings.azure_ai_bulk_model
+
     url = _build_url()
-    payload = _build_payload(system, user_content, temperature)
+    payload = _build_payload(system, user_content, temperature, model_override)
     headers = _build_headers()
 
     logger.info("AI request to %s (provider=%s)", url, _get_provider())
@@ -271,7 +286,7 @@ Body:
 {body}"""
 
     try:
-        raw = _chat(_SUMMARISE_SYSTEM, user_content)
+        raw = _chat(_SUMMARISE_SYSTEM, user_content, use_bulk_model=True)
         parsed = _parse_json(raw)
     except Exception:
         logger.exception("AI summarisation failed for email %s", email_msg.id)
@@ -366,7 +381,7 @@ def generate_daily_digest(summaries: list[EmailSummary]) -> str:
     )
 
     try:
-        return _chat(_DAILY_DIGEST_SYSTEM, user_content, temperature=0.4)
+        return _chat(_DAILY_DIGEST_SYSTEM, user_content, temperature=0.4, use_bulk_model=True)
     except Exception:
         logger.exception("Daily digest generation failed")
         return "Daily digest generation failed. Individual summaries are still available."

@@ -44,8 +44,9 @@ class Settings(BaseSettings):
     ai_provider: str = "azure"
     azure_ai_endpoint: str = ""
     azure_ai_key: str = ""
-    azure_ai_model: str = "kimi-k2.5"
-    azure_ai_api_version: str = "2024-12-01-preview"
+    azure_ai_model: str = "Kimi-K2.5"  # chatbot / reasoning model
+    azure_ai_bulk_model: str = "DeepSeek-V3.2"  # bulk processing (summarisation, extraction)
+    azure_ai_api_version: str = "2024-05-01-preview"
     azure_ai_region: str = ""  # explicit region override for azure_serverless
     # Moonshot / OpenAI-compatible direct API
     moonshot_api_key: str = ""
@@ -78,6 +79,9 @@ class Settings(BaseSettings):
     # ── Daily Briefing ────────────────────────────────────────────────────
     briefing_hour: int = 8  # 8 AM
     briefing_recipient: str = ""  # defaults to imap_user
+
+    # ── Admin ─────────────────────────────────────────────────────────────
+    admin_api_key: str = ""  # protect /api/settings/* endpoints
 
     # ── Dashboard ─────────────────────────────────────────────────────────
     host: str = "0.0.0.0"
