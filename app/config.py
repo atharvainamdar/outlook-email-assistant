@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     azure_ai_key: str = ""
     azure_ai_model: str = "kimi-k2.5"
     azure_ai_api_version: str = "2024-12-01-preview"
+    azure_ai_region: str = ""  # explicit region override for azure_serverless
     # Moonshot / OpenAI-compatible direct API
     moonshot_api_key: str = ""
     moonshot_base_url: str = "https://api.moonshot.ai/v1"

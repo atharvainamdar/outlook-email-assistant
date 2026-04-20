@@ -519,3 +519,62 @@ def api_customer_trail(domain: str, limit: int = 100):
 def api_price_matrix(limit: int = 500):
     """Extract pricing data across all emails, grouped by customer."""
     return get_price_matrix(limit=limit)
+
+
+# ── AI Chatbot ────────────────────────────────────────────────────────────────
+
+@router.post("/chat")
+def api_chat(body: dict):
+    """AI chatbot — answers questions about emails, customers, orders, prices."""
+    from app.services.ai_service import _chat, _get_api_key
+
+    user_msg = body.get("message", "").strip()
+    if not user_msg:
+        return {"reply": "Please type a question."}
+
+    if not _get_api_key():
+        return {"reply": "AI is not configured yet. Go to Settings and add your AI API key."}
+
+    # Gather context from the database for the AI
+    recent = list_emails(limit=15)
+    tasks = get_tasks(status="open", limit=10)
+    overview = get_sales_overview()
+
+    email_ctx = "\n".join(
+        f"- [{e.date.strftime('%d %b') if e.date else 'unknown'}] "
+        f"From: {e.sender_name or e.sender} | Subject: {e.subject} | "
+        f"Summary: {e.summary or '(not summarised)'}"
+        for e in recent
+    )
+    task_ctx = "\n".join(
+        f"- [{t.priority}] {t.title}: {t.description or ''}"
+        for t in tasks
+    ) if tasks else "No open tasks."
+
+    stats = overview.get("stats", {})
+    stats_ctx = (
+        f"Total emails: {stats.get('total_emails', 0)}, "
+        f"Customers: {stats.get('total_customers', 0)}, "
+        f"Prices extracted: {stats.get('total_prices', 0)}, "
+        f"Follow-ups needed: {stats.get('follow_ups_needed', 0)}"
+    )
+
+    system_prompt = (
+        "You are Ariya, a friendly AI email assistant for Ramesh Inamdar, "
+        "Sales Head of South India at Sangir Plastics. "
+        "You help him understand his emails, track orders, follow up with customers, "
+        "draft replies, and make sales decisions. "
+        "Be concise, practical, and speak like a helpful colleague. "
+        "Use the email and task data below to answer questions accurately. "
+        "If you don't have enough data, say so honestly.\n\n"
+        f"=== STATS ===\n{stats_ctx}\n\n"
+        f"=== RECENT EMAILS ===\n{email_ctx}\n\n"
+        f"=== OPEN TASKS ===\n{task_ctx}"
+    )
+
+    try:
+        reply = _chat(system_prompt, user_msg)
+        return {"reply": reply}
+    except Exception as exc:
+        logger.exception("Chatbot error")
+        return {"reply": f"Sorry, I encountered an error: {exc}"}

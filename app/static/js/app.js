@@ -85,8 +85,81 @@ function highlightNav() {
     });
 }
 
+/* ── Floating AI Chatbot ───────────────────────────────────────────────── */
+function initChatbot() {
+    const fab = document.getElementById('chatbotFab');
+    const win = document.getElementById('chatbotWindow');
+    const closeBtn = document.getElementById('chatbotClose');
+    const input = document.getElementById('chatbotInput');
+    const sendBtn = document.getElementById('chatbotSend');
+    const messages = document.getElementById('chatbotMessages');
+    const suggestions = document.getElementById('chatbotSuggestions');
+    if (!fab || !win) return;
+
+    fab.addEventListener('click', () => {
+        fab.classList.add('active');
+        win.classList.add('open');
+        input.focus();
+    });
+    closeBtn.addEventListener('click', () => {
+        win.classList.remove('open');
+        fab.classList.remove('active');
+    });
+
+    function addMsg(text, role) {
+        const div = document.createElement('div');
+        div.className = `chat-msg ${role}`;
+        div.textContent = text;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+        return div;
+    }
+
+    async function sendMessage(text) {
+        if (!text.trim()) return;
+        addMsg(text, 'user');
+        input.value = '';
+        sendBtn.disabled = true;
+        suggestions.style.display = 'none';
+
+        const thinking = addMsg('Thinking...', 'bot thinking');
+        try {
+            const resp = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text }),
+            });
+            const data = await resp.json();
+            thinking.remove();
+            addMsg(data.reply || data.detail || 'Sorry, I could not process that.', 'bot');
+        } catch (err) {
+            thinking.remove();
+            addMsg('Connection error. Please try again.', 'bot');
+        }
+        sendBtn.disabled = false;
+        input.focus();
+    }
+
+    sendBtn.addEventListener('click', () => sendMessage(input.value));
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') sendMessage(input.value);
+    });
+
+    suggestions.querySelectorAll('.suggestion-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            sendMessage(chip.dataset.q);
+        });
+    });
+}
+
+/* ── PWA Service Worker Registration ──────────────────────────────────── */
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     checkConnection();
     highlightNav();
+    initChatbot();
     setInterval(checkConnection, 30000);
 });

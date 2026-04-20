@@ -27,6 +27,7 @@ CONFIGURABLE_FIELDS = {
     "azure_ai_endpoint",
     "azure_ai_key",
     "azure_ai_model",
+    "azure_ai_region",
     "moonshot_api_key",
     "moonshot_base_url",
     "moonshot_model",

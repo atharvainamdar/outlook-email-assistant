@@ -7,12 +7,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libffi-dev && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy project files
+# Install Python deps first (cached layer)
 COPY pyproject.toml .
-COPY app/ app/
-
-# Install Python deps
 RUN pip install --no-cache-dir .
+
+# Copy app source AFTER install so code changes always take effect
+# The pip install above puts deps in site-packages; we override the
+# app/ package with the latest source below.
+COPY app/ app/
 
 # Create data directory
 RUN mkdir -p /data

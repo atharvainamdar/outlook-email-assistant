@@ -135,23 +135,32 @@ def _build_url() -> str:
 
 
 def _extract_region(endpoint: str) -> str:
-    """Extract Azure region from endpoint URL."""
-    # e.g. https://foo-resource.services.ai.azure.com -> guess from name
-    # or use a known mapping
-    parts = endpoint.lower()
-    if "eastus" in parts:
-        return "eastus"
-    if "centralindia" in parts:
-        return "centralindia"
-    if "westus2" in parts:
-        return "westus2"
-    if "westus3" in parts:
-        return "westus3"
-    if "westus" in parts:
-        return "westus"
-    if "westeurope" in parts:
-        return "westeurope"
-    return "eastus"  # default
+    """Extract Azure region from endpoint URL.
+
+    Prefers the explicit ``settings.azure_ai_region`` config value when set,
+    falling back to parsing the region from the endpoint hostname.
+    """
+    if settings.azure_ai_region:
+        return settings.azure_ai_region
+
+    # Try to extract region from URL like https://<resource>.<region>.api.cognitive.microsoft.com
+    # or https://<region>.api.cognitive.microsoft.com
+    try:
+        from urllib.parse import urlparse
+        host = urlparse(endpoint).hostname or ""
+        parts = host.split(".")
+        # Common patterns: <region>.api.cognitive.microsoft.com
+        #                  <resource>.<region>.models.ai.azure.com
+        for p in parts:
+            if p and p not in ("api", "cognitive", "microsoft", "com", "models", "ai", "azure",
+                               "openai", "services", "inference"):
+                # Check if it looks like a region (contains letters, no special chars)
+                if p.isalpha() or (p.replace("-", "").isalnum() and len(p) > 3):
+                    return p
+    except Exception:
+        pass
+
+    return "eastus"
 
 
 def _build_payload(
