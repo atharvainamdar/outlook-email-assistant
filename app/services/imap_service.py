@@ -160,15 +160,17 @@ class IMAPService:
         client.login(self.user, self.password)
         return client
 
-    def test_connection(self) -> bool:
-        """Return True if IMAP login succeeds."""
+    def test_connection(self) -> tuple[bool, str]:
+        """Return (True, message) if IMAP login succeeds, (False, error) otherwise."""
+        if not self.user or not self.password:
+            return False, "Email address and password are required"
         try:
             client = self._connect()
             client.logout()
-            return True
+            return True, "Connection successful"
         except Exception as exc:
             logger.warning("IMAP connection test failed: %s", exc)
-            return False
+            return False, str(exc)
 
     def fetch_new_emails(
         self,
