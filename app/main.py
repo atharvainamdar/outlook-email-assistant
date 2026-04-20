@@ -90,7 +90,7 @@ async def prices_page(request: Request):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "app": settings.app_title}
+    return {"status": "ok", "app": settings.app_title, "version": "v15-oauth2"}
 
 
 # ── Microsoft OAuth2 ──────────────────────────────────────────────────────────
