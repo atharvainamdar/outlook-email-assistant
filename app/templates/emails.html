@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+{% block title %}Emails — Ariya Email Assistant{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Emails</h1>
+    <div class="header-actions">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search emails..." onkeyup="if(event.key==='Enter')searchEmails()">
+        <button class="btn btn-primary" onclick="searchEmails()">Search</button>
+    </div>
+</div>
+
+<div class="filters-bar">
+    <select id="filterSender" onchange="loadEmails()">
+        <option value="">All Senders</option>
+    </select>
+    <label><input type="checkbox" id="filterUnsummarised" onchange="loadEmails()"> Unsummarised only</label>
+</div>
+
+<div class="email-list" id="emailList">
+    <p class="empty-state">Loading...</p>
+</div>
+
+<div class="pagination">
+    <button class="btn btn-sm" id="prevBtn" onclick="changePage(-1)" disabled>Previous</button>
+    <span id="pageInfo">Page 1</span>
+    <button class="btn btn-sm" id="nextBtn" onclick="changePage(1)">Next</button>
+</div>
+
+<!-- Email detail modal -->
+<div class="modal" id="emailModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalSubject"></h2>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="email-meta" id="modalMeta"></div>
+            <div class="email-summary" id="modalSummary"></div>
+            <div class="email-body" id="modalBody"></div>
+            <div class="email-attachments" id="modalAttachments"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-primary" id="btnSummarise" onclick="summariseEmail()">Summarise</button>
+            <button class="btn btn-secondary" id="btnDraft" onclick="showDraftPanel()">Draft Reply</button>
+        </div>
+        <!-- Draft panel -->
+        <div class="draft-panel hidden" id="draftPanel">
+            <h3>Draft Reply</h3>
+            <textarea id="draftInstruction" placeholder="Instructions (e.g., 'Accept the meeting', 'Politely decline')"></textarea>
+            <select id="draftTone">
+                <option value="professional">Professional</option>
+                <option value="friendly">Friendly</option>
+                <option value="formal">Formal</option>
+                <option value="brief">Brief</option>
+            </select>
+            <button class="btn btn-primary" onclick="generateDraft()">Generate Draft</button>
+            <div class="draft-result hidden" id="draftResult">
+                <h4>Generated Draft:</h4>
+                <div id="draftSubject"></div>
+                <textarea id="draftBody" rows="10"></textarea>
+                <button class="btn btn-primary" onclick="sendDraft()">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+let currentPage = 0;
+const pageSize = 30;
+let currentEmailId = null;
+
+async function loadEmails() {
+    const unsummarised = document.getElementById('filterUnsummarised').checked;
+    const sender = document.getElementById('filterSender').value;
+    const params = new URLSearchParams({
+        limit: pageSize,
+        offset: currentPage * pageSize,
+    });
+    if (unsummarised) params.set('unsummarised', 'true');
+    if (sender) params.set('sender', sender);
+
+    try {
+        const emails = await api(`/api/emails?${params}`);
+        const el = document.getElementById('emailList');
+        if (emails.length === 0) {
+            el.innerHTML = '<p class="empty-state">No emails found.</p>';
+        } else {
+            el.innerHTML = emails.map(e => emailCardClickable(e)).join('');
+        }
+        document.getElementById('pageInfo').textContent = `Page ${currentPage + 1}`;
+        document.getElementById('prevBtn').disabled = currentPage === 0;
+        document.getElementById('nextBtn').disabled = emails.length < pageSize;
+    } catch(e) {
+        console.error('Load emails error:', e);
+    }
+}
+
+function emailCardClickable(e) {
+    const date = e.date ? new Date(e.date).toLocaleString() : '';
+    const summaryBadge = e.summary ? '<span class="badge badge-green">Summarised</span>' : '<span class="badge badge-grey">Unsummarised</span>';
+    return `<div class="email-card clickable" onclick="openEmail('${e.id}')">
+        <div class="email-card-header">
+            <strong>${escHtml(e.sender_name || e.sender)}</strong>
+            <span class="email-date">${date}</span>
+        </div>
+        <div class="email-card-subject">${escHtml(e.subject)}</div>
+        <div class="email-card-preview">${escHtml((e.summary || e.body_text || '').substring(0, 150))}...</div>
+        <div class="email-card-footer">
+            ${summaryBadge}
+            ${e.attachments.length ? `<span class="badge badge-blue">${e.attachments.length} attachment(s)</span>` : ''}
+        </div>
+    </div>`;
+}
+
+async function openEmail(id) {
+    currentEmailId = id;
+    try {
+        const e = await api(`/api/emails/${id}`);
+        document.getElementById('modalSubject').textContent = e.subject;
+        document.getElementById('modalMeta').innerHTML = `
+            <p><strong>From:</strong> ${escHtml(e.sender_name)} &lt;${escHtml(e.sender)}&gt;</p>
+            <p><strong>To:</strong> ${escHtml(e.recipients.join(', '))}</p>
+            ${e.cc.length ? `<p><strong>CC:</strong> ${escHtml(e.cc.join(', '))}</p>` : ''}
+            <p><strong>Date:</strong> ${e.date ? new Date(e.date).toLocaleString() : 'Unknown'}</p>
+        `;
+        document.getElementById('modalSummary').innerHTML = e.summary
+            ? `<div class="summary-box"><strong>AI Summary:</strong> ${escHtml(e.summary)}</div>`
+            : '';
+        document.getElementById('modalBody').innerHTML = e.body_html || `<pre>${escHtml(e.body_text)}</pre>`;
+        if (e.attachments.length) {
+            document.getElementById('modalAttachments').innerHTML = '<h4>Attachments:</h4>' +
+                e.attachments.map(a => `<span class="badge badge-blue">${escHtml(a.filename)} (${(a.size_bytes/1024).toFixed(1)} KB)</span>`).join(' ');
+        } else {
+            document.getElementById('modalAttachments').innerHTML = '';
+        }
+        document.getElementById('draftPanel').classList.add('hidden');
+        document.getElementById('emailModal').classList.add('active');
+    } catch(e) {
+        showToast('Failed to load email', 'error');
+    }
+}
+
+function closeModal() {
+    document.getElementById('emailModal').classList.remove('active');
+    currentEmailId = null;
+}
+
+async function summariseEmail() {
+    if (!currentEmailId) return;
+    showToast('Summarising...');
+    try {
+        const result = await api(`/api/emails/${currentEmailId}/summarise`, { method: 'POST' });
+        document.getElementById('modalSummary').innerHTML =
+            `<div class="summary-box"><strong>AI Summary:</strong> ${escHtml(result.summary)}</div>`;
+        showToast('Email summarised!');
+        loadEmails();
+    } catch(e) {
+        showToast('Summarisation failed', 'error');
+    }
+}
+
+function showDraftPanel() {
+    document.getElementById('draftPanel').classList.toggle('hidden');
+}
+
+async function generateDraft() {
+    if (!currentEmailId) return;
+    showToast('Generating draft...');
+    try {
+        const result = await api(`/api/emails/${currentEmailId}/draft`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email_id: currentEmailId,
+                instruction: document.getElementById('draftInstruction').value,
+                tone: document.getElementById('draftTone').value,
+            }),
+        });
+        document.getElementById('draftSubject').textContent = result.subject;
+        document.getElementById('draftBody').value = result.body;
+        document.getElementById('draftResult').classList.remove('hidden');
+        showToast('Draft generated!');
+    } catch(e) {
+        showToast('Draft failed', 'error');
+    }
+}
+
+async function sendDraft() {
+    const email = await api(`/api/emails/${currentEmailId}`);
+    const body = document.getElementById('draftBody').value;
+    const subject = document.getElementById('draftSubject').textContent;
+    try {
+        await api('/api/emails/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                to: [email.sender],
+                subject: subject,
+                body: body,
+                reply_to_email_id: currentEmailId,
+            }),
+        });
+        showToast('Email sent!');
+        closeModal();
+    } catch(e) {
+        showToast('Send failed', 'error');
+    }
+}
+
+async function searchEmails() {
+    const q = document.getElementById('searchInput').value;
+    if (!q) { loadEmails(); return; }
+    try {
+        const emails = await api(`/api/emails/search/?q=${encodeURIComponent(q)}`);
+        const el = document.getElementById('emailList');
+        if (emails.length === 0) {
+            el.innerHTML = '<p class="empty-state">No results found.</p>';
+        } else {
+            el.innerHTML = emails.map(e => emailCardClickable(e)).join('');
+        }
+    } catch(e) {
+        showToast('Search failed', 'error');
+    }
+}
+
+function changePage(delta) {
+    currentPage = Math.max(0, currentPage + delta);
+    loadEmails();
+}
+
+loadEmails();
+</script>
+{% endblock %}

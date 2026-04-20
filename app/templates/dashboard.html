@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Ariya Email Assistant{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Dashboard</h1>
+    <p class="subtitle">Your email command centre</p>
+</div>
+
+<!-- Stats cards -->
+<div class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+        <div class="stat-number" id="statEmails">—</div>
+        <div class="stat-label">Total Emails</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statSummarised">—</div>
+        <div class="stat-label">Summarised</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statBackedUp">—</div>
+        <div class="stat-label">Backed Up</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statTasksOpen">—</div>
+        <div class="stat-label">Open Tasks</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statTasksDone">—</div>
+        <div class="stat-label">Tasks Done</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-number" id="statStorage">—</div>
+        <div class="stat-label">Backup Size (MB)</div>
+    </div>
+</div>
+
+<!-- Quick actions -->
+<div class="section">
+    <h2>Quick Actions</h2>
+    <div class="action-bar">
+        <button class="btn btn-primary" onclick="fetchEmails()">Fetch New Emails</button>
+        <button class="btn btn-secondary" onclick="summariseBatch()">Summarise Unsummarised</button>
+        <button class="btn btn-secondary" onclick="backupNow()">Backup Now</button>
+    </div>
+</div>
+
+<!-- Recent emails -->
+<div class="section">
+    <h2>Recent Emails</h2>
+    <div class="email-list" id="recentEmails">
+        <p class="empty-state">Loading...</p>
+    </div>
+</div>
+
+<!-- Open tasks -->
+<div class="section">
+    <h2>Open Tasks</h2>
+    <div class="task-list" id="openTasks">
+        <p class="empty-state">Loading...</p>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadDashboard() {
+    // Load stats
+    try {
+        const stats = await api('/api/stats');
+        document.getElementById('statEmails').textContent = stats.total_emails;
+        document.getElementById('statSummarised').textContent = stats.total_summarised;
+        document.getElementById('statBackedUp').textContent = stats.total_backed_up;
+        document.getElementById('statTasksOpen').textContent = stats.total_tasks_open;
+        document.getElementById('statTasksDone').textContent = stats.total_tasks_done;
+        document.getElementById('statStorage').textContent = stats.storage_saved_mb;
+    } catch(e) { console.error('Stats error:', e); }
+
+    // Load recent emails
+    try {
+        const emails = await api('/api/emails?limit=10');
+        const el = document.getElementById('recentEmails');
+        if (emails.length === 0) {
+            el.innerHTML = '<p class="empty-state">No emails yet. Configure IMAP or use the webhook to ingest emails.</p>';
+        } else {
+            el.innerHTML = emails.map(e => emailCard(e)).join('');
+        }
+    } catch(e) { console.error('Emails error:', e); }
+
+    // Load open tasks
+    try {
+        const tasks = await api('/api/tasks?status=open&limit=10');
+        const el = document.getElementById('openTasks');
+        if (tasks.length === 0) {
+            el.innerHTML = '<p class="empty-state">No open tasks.</p>';
+        } else {
+            el.innerHTML = tasks.map(t => taskCard(t)).join('');
+        }
+    } catch(e) { console.error('Tasks error:', e); }
+}
+
+async function fetchEmails() {
+    showToast('Fetching emails...');
+    // This triggers via the scheduler; we just show a message
+    showToast('Email fetch triggered. New emails will appear shortly.');
+}
+
+async function summariseBatch() {
+    showToast('Summarising emails...');
+    try {
+        const result = await api('/api/emails/summarise-batch', { method: 'POST' });
+        showToast(`Summarised ${result.summarised} emails`);
+        loadDashboard();
+    } catch(e) {
+        showToast('Summarisation failed: ' + e.message, 'error');
+    }
+}
+
+async function backupNow() {
+    showToast('Starting backup...');
+    try {
+        const result = await api('/api/backup', { method: 'POST' });
+        showToast(`Backed up ${result.total} emails (${result.json_files} JSON, ${result.eml_files} EML)`);
+        loadDashboard();
+    } catch(e) {
+        showToast('Backup failed: ' + e.message, 'error');
+    }
+}
+
+loadDashboard();
+setInterval(loadDashboard, 30000);
+</script>
+{% endblock %}

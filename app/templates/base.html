@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ariya Email Assistant{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="sidebar">
+        <div class="sidebar-header">
+            <h2>Ariya</h2>
+            <span class="subtitle">Email Assistant</span>
+        </div>
+        <ul class="nav-links">
+            <li><a href="/" class="nav-link" data-page="dashboard">
+                <span class="icon">&#9776;</span> Dashboard
+            </a></li>
+            <li><a href="/emails" class="nav-link" data-page="emails">
+                <span class="icon">&#9993;</span> Emails
+            </a></li>
+            <li><a href="/tasks" class="nav-link" data-page="tasks">
+                <span class="icon">&#9745;</span> Tasks
+            </a></li>
+            <li><a href="/settings" class="nav-link" data-page="settings">
+                <span class="icon">&#9881;</span> Settings
+            </a></li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="status-indicator" id="connectionStatus">
+                <span class="dot"></span>
+                <span class="status-text">Checking...</span>
+            </div>
+        </div>
+    </nav>
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+    <script src="/static/js/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Tasks — Ariya Email Assistant{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>Tasks</h1>
+    <p class="subtitle">Action items extracted from your emails</p>
+</div>
+
+<div class="filters-bar">
+    <select id="taskFilter" onchange="loadTasks()">
+        <option value="">All Tasks</option>
+        <option value="open" selected>Open</option>
+        <option value="in_progress">In Progress</option>
+        <option value="done">Done</option>
+        <option value="dismissed">Dismissed</option>
+    </select>
+</div>
+
+<div class="task-list" id="taskList">
+    <p class="empty-state">Loading...</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function loadTasks() {
+    const status = document.getElementById('taskFilter').value;
+    const params = new URLSearchParams({ limit: 100 });
+    if (status) params.set('status', status);
+    try {
+        const tasks = await api(`/api/tasks?${params}`);
+        const el = document.getElementById('taskList');
+        if (tasks.length === 0) {
+            el.innerHTML = '<p class="empty-state">No tasks found.</p>';
+        } else {
+            el.innerHTML = tasks.map(t => taskCardFull(t)).join('');
+        }
+    } catch(e) {
+        console.error('Load tasks error:', e);
+    }
+}
+
+function taskCardFull(t) {
+    const priorityClass = t.priority === 'high' ? 'priority-high' : t.priority === 'low' ? 'priority-low' : 'priority-medium';
+    const statusOptions = ['open', 'in_progress', 'done', 'dismissed'].map(s =>
+        `<option value="${s}" ${t.status === s ? 'selected' : ''}>${s.replace('_', ' ')}</option>`
+    ).join('');
+    return `<div class="task-card ${priorityClass}">
+        <div class="task-header">
+            <span class="task-title">${escHtml(t.title)}</span>
+            <span class="badge badge-${t.priority}">${t.priority}</span>
+        </div>
+        ${t.description ? `<p class="task-desc">${escHtml(t.description)}</p>` : ''}
+        <div class="task-footer">
+            <select onchange="updateTask('${t.id}', this.value)">${statusOptions}</select>
+            <span class="task-date">${t.created_at ? new Date(t.created_at).toLocaleDateString() : ''}</span>
+        </div>
+    </div>`;
+}
+
+async function updateTask(id, status) {
+    try {
+        await api(`/api/tasks/${id}?status=${status}`, { method: 'PATCH' });
+        showToast('Task updated');
+    } catch(e) {
+        showToast('Failed to update task', 'error');
+    }
+}
+
+loadTasks();
+</script>
+{% endblock %}

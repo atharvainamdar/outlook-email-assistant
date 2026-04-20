@@ -1,0 +1,42 @@
+[project]
+name = "outlook-email-assistant"
+version = "1.0.0"
+description = "AI-powered Outlook email assistant — summarize, draft, track tasks, and backup emails without admin access"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "aiofiles>=24.1.0",
+    "imapclient>=3.0.1",
+    "mail-parser>=3.15.0",
+    "beautifulsoup4>=4.12.0",
+    "openai>=1.40.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.5.0",
+    "apscheduler>=3.10.0",
+    "aiosqlite>=0.20.0",
+    "databases[sqlite]>=0.9.0",
+    "sqlalchemy>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
