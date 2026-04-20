@@ -551,12 +551,11 @@ def api_chat(body: dict):
         for t in tasks
     ) if tasks else "No open tasks."
 
-    stats = overview.get("stats", {})
     stats_ctx = (
-        f"Total emails: {stats.get('total_emails', 0)}, "
-        f"Customers: {stats.get('total_customers', 0)}, "
-        f"Prices extracted: {stats.get('total_prices', 0)}, "
-        f"Follow-ups needed: {stats.get('follow_ups_needed', 0)}"
+        f"Total emails: {overview.get('total_emails', 0)}, "
+        f"Customers: {overview.get('active_customers', 0)}, "
+        f"Prices extracted: {overview.get('price_mentions', 0)}, "
+        f"Follow-ups needed: {overview.get('follow_ups_needed', 0)}"
     )
 
     system_prompt = (

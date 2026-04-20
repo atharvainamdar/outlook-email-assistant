@@ -112,12 +112,22 @@ def _build_url() -> str:
 
     if provider == "azure_serverless":
         endpoint = settings.azure_ai_endpoint.rstrip("/")
-        # Azure AI Foundry serverless: models endpoint
-        base = endpoint.split("/api/projects")[0]
-        region = _extract_region(base)
-        host = base.split("//", 1)[1].split(".")[0] if "//" in base else base
+        # If the endpoint already looks like a full chat URL, use it directly
+        if "/chat/completions" in endpoint:
+            return endpoint
+        # If it's a models endpoint, append /chat/completions
+        if "models.ai.azure.com" in endpoint:
+            return f"{endpoint}/chat/completions"
+        # Azure AI Foundry serverless: construct models endpoint
+        region = _extract_region(endpoint)
+        try:
+            from urllib.parse import urlparse
+            host = urlparse(endpoint).hostname or ""
+            resource = host.split(".")[0]
+        except Exception:
+            resource = "default"
         return (
-            f"https://{host}.{region}.models.ai.azure.com"
+            f"https://{resource}.{region}.models.ai.azure.com"
             f"/chat/completions"
         )
 
