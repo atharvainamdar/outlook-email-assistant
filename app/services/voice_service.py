@@ -114,7 +114,7 @@ def speech_to_text_translate(
 def text_to_speech(
     text: str,
     language: str = LANG_HINDI,
-    speaker: str = "anushka",
+    speaker: str = "priya",
 ) -> str | None:
     """Convert text to speech using Sarvam Bulbul v3.
 

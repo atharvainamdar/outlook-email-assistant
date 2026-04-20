@@ -182,7 +182,13 @@ def _build_payload(
 
 
 def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
-    """Send a chat completion request to the configured AI provider."""
+    """Send a chat completion request to the configured AI provider.
+
+    Retries up to 3 times on 429 (rate limit / concurrency) errors
+    with exponential backoff.
+    """
+    import time
+
     if not _get_api_key():
         raise RuntimeError("No AI API key configured")
 
@@ -191,10 +197,30 @@ def _chat(system: str, user_content: str, temperature: float = 0.3) -> str:
     headers = _build_headers()
 
     logger.info("AI request to %s (provider=%s)", url, _get_provider())
-    resp = httpx.post(url, json=payload, headers=headers, timeout=60)
-    resp.raise_for_status()
-    data = resp.json()
-    return data["choices"][0]["message"]["content"].strip()
+    last_exc: Exception | None = None
+    for attempt in range(4):
+        if attempt > 0:
+            wait = 2 ** attempt
+            logger.warning("AI 429 retry %d, waiting %ds", attempt, wait)
+            time.sleep(wait)
+        try:
+            resp = httpx.post(url, json=payload, headers=headers, timeout=90)
+            if resp.status_code == 429:
+                last_exc = httpx.HTTPStatusError(
+                    "429", request=resp.request, response=resp,
+                )
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            msg = data["choices"][0]["message"]
+            text = msg.get("content") or msg.get("reasoning_content") or ""
+            return text.strip()
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 429:
+                last_exc = exc
+                continue
+            raise
+    raise last_exc or RuntimeError("AI request failed after retries")
 
 
 def _parse_json(text: str) -> dict:
