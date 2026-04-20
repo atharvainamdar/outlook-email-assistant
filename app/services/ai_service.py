@@ -191,14 +191,12 @@ def _build_payload(
         "max_tokens": 2000,
     }
 
+    # Always include model name — required by Azure AI Foundry models endpoint
     provider = _get_provider()
-    if provider in ("azure_serverless", "moonshot", "openai_compat"):
-        model = (
-            settings.moonshot_model
-            if provider == "moonshot"
-            else settings.azure_ai_model
-        )
-        payload["model"] = model
+    if provider == "moonshot":
+        payload["model"] = settings.moonshot_model
+    elif settings.azure_ai_model:
+        payload["model"] = settings.azure_ai_model
 
     return payload
 
