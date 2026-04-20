@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  ariya:
+    build: .
+    container_name: ariya-email-assistant
+    ports:
+      - "8000:8000"
+    volumes:
+      - email-data:/data
+    env_file:
+      - .env
+    restart: unless-stopped
+
+volumes:
+  email-data:

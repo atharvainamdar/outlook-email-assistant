@@ -1,4 +1,4 @@
-"""Background scheduler — periodic email fetching, summarisation, and backup."""
+"""Background scheduler — periodic email fetching, summarisation, backup, and briefing."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from app.config import settings
 from app.database import (
@@ -32,6 +33,16 @@ def _fetch_job() -> None:
         since = datetime.utcnow() - timedelta(days=1)
         new_emails = svc.fetch_new_emails(limit=100, since_date=since)
         logger.info("Scheduler: fetched %d new emails", len(new_emails))
+
+        # Send urgent alerts via WhatsApp
+        if settings.whatsapp_token:
+            from app.services.categorisation_service import categorise_email
+            from app.services.whatsapp_service import WhatsAppService
+            wa = WhatsAppService()
+            for em in new_emails:
+                cat = categorise_email(em)
+                if cat.get("priority") == "high":
+                    wa.send_urgent_alert(em)
     except Exception:
         logger.exception("Scheduler: email fetch failed")
 
@@ -45,7 +56,6 @@ def _summarise_job() -> None:
         for em in unsummarised:
             result = summarise_email(em)
             update_email_summary(em.id, result.summary)
-            # Save extracted tasks
             if result.tasks:
                 for task in result.tasks:
                     task.email_id = em.id
@@ -59,7 +69,6 @@ def _summarise_job() -> None:
 def _backup_job() -> None:
     """Backup new emails that haven't been backed up yet."""
     try:
-        # Get emails not yet backed up
         all_emails = list_emails(limit=10000)
         not_backed = [e for e in all_emails if not e.backed_up]
         if not_backed:
@@ -67,6 +76,35 @@ def _backup_job() -> None:
             logger.info("Scheduler: backed up %d emails", stats["total"])
     except Exception:
         logger.exception("Scheduler: backup failed")
+
+
+def _daily_briefing_job() -> None:
+    """Send daily morning briefing via email and WhatsApp."""
+    try:
+        from app.services.briefing_service import send_daily_briefing
+        send_daily_briefing()
+        logger.info("Scheduler: daily briefing sent")
+
+        # Also send via WhatsApp if configured
+        if settings.whatsapp_token and settings.whatsapp_dad_phone:
+            from app.services.briefing_service import generate_briefing_html
+            from app.services.whatsapp_service import WhatsAppService
+            _, count = generate_briefing_html()
+            emails = list_emails(limit=20)
+            lines = [f"*Good Morning! Daily Briefing* ({count} emails)\n"]
+            for em in emails[:10]:
+                summary = em.summary or em.subject
+                lines.append(
+                    f"- *{em.sender_name or em.sender}*: "
+                    f"{summary[:80]}"
+                )
+            if count > 10:
+                lines.append(f"\n...and {count - 10} more")
+            lines.append("\nOpen dashboard for full details.")
+            wa = WhatsAppService()
+            wa.send_daily_briefing("\n".join(lines))
+    except Exception:
+        logger.exception("Scheduler: daily briefing failed")
 
 
 def start_scheduler() -> BackgroundScheduler:
@@ -103,6 +141,14 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         seconds=3600,
         id="backup_emails",
+        replace_existing=True,
+    )
+
+    # Daily briefing at configured hour (default 8 AM)
+    _scheduler.add_job(
+        _daily_briefing_job,
+        CronTrigger(hour=settings.briefing_hour, minute=0),
+        id="daily_briefing",
         replace_existing=True,
     )
 
